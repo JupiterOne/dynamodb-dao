@@ -1,0 +1,572 @@
+import { DocumentClient } from 'aws-sdk/clients/dynamodb';
+
+type AttributeNames = Record<string, string>;
+type AttributeValues = Record<string, any>;
+
+export interface ScanInput {
+  index?: string;
+  limit?: number;
+  startAt?: string;
+  filterExpression?: string;
+  attributeNames?: AttributeNames;
+  attributeValues?: AttributeValues;
+}
+
+export interface CountOutput {
+  count?: number;
+  scannedCount?: number;
+  lastKey?: string;
+}
+
+export interface QueryInput extends ScanInput {
+  scanIndexForward?: boolean;
+  keyConditionExpression: string;
+  attributeValues: AttributeValues;
+}
+
+export interface QueryInputWithLimit extends QueryInput {
+  limit: number;
+}
+
+export interface QueryResult<T> {
+  items: T[];
+  lastKey?: string;
+}
+
+export interface BatchPutOperation<DataModel> {
+  put: DataModel;
+}
+
+export interface BatchDeleteOperation<KeySchema> {
+  delete: KeySchema;
+}
+
+export type BatchWriteOperation<DataModel, KeySchema> =
+  | BatchPutOperation<DataModel>
+  | BatchDeleteOperation<KeySchema>;
+
+export interface BatchWriteResult<DataModel, KeySchema> {
+  unprocessedItems?: BatchWriteOperation<DataModel, KeySchema>[];
+}
+
+export interface BatchGetResult<DataModel, KeySchema> {
+  items: DataModel[];
+  unprocessedKeys?: KeySchema[];
+}
+
+export const DEFAULT_QUERY_LIMIT = 50;
+export const MAX_BATCH_OPERATIONS = 25;
+
+/**
+ * encode start key into a base64 encoded string
+ * that can be used for pagination
+ */
+export function encodeExclusiveStartKey<KeySchema>(obj: KeySchema): string {
+  return Buffer.from(JSON.stringify(obj)).toString('base64');
+}
+
+/**
+ * Decode the key the start key
+ */
+export function decodeExclusiveStartKey<KeySchema>(token: string): KeySchema {
+  try {
+    return JSON.parse(Buffer.from(token, 'base64').toString('utf8'));
+  } catch (err) {
+    throw new Error('Invalid pagination token provided');
+  }
+}
+
+export function isBatchPutOperation<DataModel, KeySchema>(
+  operation: BatchWriteOperation<DataModel, KeySchema>,
+): operation is BatchPutOperation<DataModel> {
+  return (operation as any).put !== undefined;
+}
+
+export interface ConditionalOptions {
+  conditionExpression?: string;
+  attributeNames?: AttributeNames;
+  attributeValues?: AttributeValues;
+}
+
+export type PutOptions = ConditionalOptions;
+export type UpdateOptions = ConditionalOptions;
+export type DeleteOptions = ConditionalOptions;
+
+export interface GenerateUpdateParamsInput extends UpdateOptions {
+  tableName: string;
+  key: any;
+  data: object;
+}
+
+export function generateUpdateParams(
+  options: GenerateUpdateParamsInput,
+): DocumentClient.UpdateItemInput {
+  const setExpressions: string[] = [];
+  const removeExpressions: string[] = [];
+  const expressionAttributeNameMap: AttributeNames = {};
+  const expressionAttributeValueMap: AttributeValues = {};
+
+  const {
+    tableName,
+    key,
+    data,
+    conditionExpression,
+    attributeNames,
+    attributeValues,
+  } = options;
+
+  const keys = Object.keys(options.data).sort();
+
+  for (let i = 0; i < keys.length; i++) {
+    const name = keys[i];
+
+    const valueName = `:${name}`;
+    const attributeName = `#a${i}`;
+
+    const value = (data as any)[name];
+    expressionAttributeNameMap[attributeName] = name;
+
+    if (value === undefined) {
+      removeExpressions.push(attributeName);
+    } else {
+      expressionAttributeValueMap[valueName] = value;
+      setExpressions.push(`${attributeName} = ${valueName}`);
+    }
+  }
+  const expressionAttributeValues = {
+    ...expressionAttributeValueMap,
+    ...attributeValues,
+  };
+
+  const setString =
+    setExpressions.length > 0 ? 'set ' + setExpressions.join(', ') : undefined;
+
+  const removeString =
+    removeExpressions.length > 0
+      ? 'remove ' + removeExpressions.join(', ')
+      : undefined;
+
+  return {
+    TableName: tableName,
+    Key: key,
+    ConditionExpression: conditionExpression,
+    UpdateExpression: [setString, removeString]
+      .filter((val) => val !== undefined)
+      .join(' '),
+    ExpressionAttributeNames: {
+      ...expressionAttributeNameMap,
+      ...attributeNames,
+    },
+    ExpressionAttributeValues:
+      Object.keys(expressionAttributeValues).length > 0
+        ? expressionAttributeValues
+        : undefined,
+    ReturnValues: 'ALL_NEW',
+  };
+}
+
+interface DynamoDbDaoInput {
+  tableName: string;
+  documentClient: DocumentClient;
+}
+
+function invalidCursorError(cursor: string) {
+  const err = new Error(
+    `Invalid cursor for queryUntilLimitReached(...) function (cursor=${cursor})`,
+  );
+  (err as any).retryable = false;
+  return err;
+}
+
+export function encodeQueryUntilLimitCursor(
+  lastKey: string | undefined,
+  skip: number | undefined,
+) {
+  return `${skip || 0}|${lastKey || ''}`;
+}
+
+export function decodeQueryUntilLimitCursor(cursor: string | undefined) {
+  if (!cursor) {
+    return {
+      skip: 0,
+      lastKey: undefined,
+    };
+  }
+
+  const pos = cursor.indexOf('|');
+  if (pos === -1) {
+    throw invalidCursorError(cursor);
+  }
+
+  const skip = parseInt(cursor.substring(0, pos), 10);
+  if (Number.isNaN(skip)) {
+    throw invalidCursorError(cursor);
+  }
+
+  const lastKey = cursor.substring(pos + 1);
+  return { skip, lastKey };
+}
+
+/**
+ * A base dynamodb dao class that enforces types
+ */
+export default class DynamoDbDao<DataModel, KeySchema> {
+  public readonly tableName: string;
+  public readonly documentClient: DocumentClient;
+
+  constructor(options: DynamoDbDaoInput) {
+    this.tableName = options.tableName;
+    this.documentClient = options.documentClient;
+  }
+
+  /**
+   * Fetches an item by it's key schema
+   */
+  async get(key: KeySchema): Promise<DataModel | undefined> {
+    const { Item: item } = await this.documentClient
+      .get({
+        TableName: this.tableName,
+        Key: key,
+      })
+      .promise();
+
+    return item as DataModel;
+  }
+
+  /**
+   * Deletes the item. Returns the deleted item
+   * if it was deleted
+   */
+  async delete(
+    key: KeySchema,
+    options: DeleteOptions = {},
+  ): Promise<DataModel | undefined> {
+    const { Attributes: attributes } = await this.documentClient
+      .delete({
+        TableName: this.tableName,
+        Key: key,
+        ReturnValues: 'ALL_OLD',
+        ConditionExpression: options.conditionExpression,
+        ExpressionAttributeNames: options.attributeNames,
+        ExpressionAttributeValues: options.attributeValues,
+      })
+      .promise();
+
+    return attributes as DataModel;
+  }
+
+  /**
+   * Creates/Updates an item in the table
+   */
+  async put(data: DataModel, options: PutOptions = {}): Promise<DataModel> {
+    await this.documentClient
+      .put({
+        TableName: this.tableName,
+        Item: data,
+        ConditionExpression: options.conditionExpression,
+        ExpressionAttributeNames: options.attributeNames,
+        ExpressionAttributeValues: options.attributeValues,
+      })
+      .promise();
+    return data;
+  }
+
+  /**
+   * Creates/Updates an item in the table
+   */
+  async update(
+    key: KeySchema,
+    data: Partial<DataModel>,
+    updateOptions?: UpdateOptions,
+  ): Promise<DataModel> {
+    const { Attributes: attributes } = await this.documentClient
+      .update(
+        generateUpdateParams({
+          tableName: this.tableName,
+          key,
+          data,
+          ...updateOptions,
+        }),
+      )
+      .promise();
+
+    return attributes as DataModel;
+  }
+
+  /**
+   * Executes a query to fetch a count
+   */
+  async count(input: QueryInput): Promise<CountOutput> {
+    const {
+      index,
+      attributeValues,
+      attributeNames,
+      keyConditionExpression,
+      filterExpression,
+      startAt,
+      limit,
+    } = input;
+
+    let startKey: KeySchema | undefined;
+
+    if (startAt) {
+      startKey = decodeExclusiveStartKey<KeySchema>(startAt);
+    }
+
+    const result = await this.documentClient
+      .query({
+        TableName: this.tableName,
+        IndexName: index,
+        KeyConditionExpression: keyConditionExpression,
+        FilterExpression: filterExpression,
+        ExpressionAttributeValues: attributeValues,
+        ExpressionAttributeNames: attributeNames,
+        ExclusiveStartKey: startKey,
+        Limit: limit,
+        Select: 'COUNT',
+      })
+      .promise();
+
+    return {
+      count: result.Count,
+      scannedCount: result.ScannedCount,
+      lastKey: result.LastEvaluatedKey
+        ? encodeExclusiveStartKey<KeySchema>(
+            result.LastEvaluatedKey as KeySchema,
+          )
+        : undefined,
+    };
+  }
+
+  /**
+   * Executes a query on the table
+   */
+  async query(input: QueryInput): Promise<QueryResult<DataModel>> {
+    const {
+      index,
+      startAt,
+      attributeNames,
+      attributeValues,
+      scanIndexForward,
+      keyConditionExpression,
+      filterExpression,
+      limit = DEFAULT_QUERY_LIMIT,
+    } = input;
+
+    let startKey: KeySchema | undefined;
+
+    if (startAt) {
+      startKey = decodeExclusiveStartKey<KeySchema>(startAt);
+    }
+
+    const result = await this.documentClient
+      .query({
+        TableName: this.tableName,
+        IndexName: index,
+        Limit: limit,
+        ScanIndexForward: scanIndexForward,
+        ExclusiveStartKey: startKey,
+        KeyConditionExpression: keyConditionExpression,
+        FilterExpression: filterExpression,
+        ExpressionAttributeNames: attributeNames,
+        ExpressionAttributeValues: attributeValues,
+      })
+      .promise();
+
+    return {
+      items: result.Items as DataModel[],
+      lastKey: result.LastEvaluatedKey
+        ? encodeExclusiveStartKey<KeySchema>(
+            result.LastEvaluatedKey as KeySchema,
+          )
+        : undefined,
+    };
+  }
+
+  async queryUntilLimitReached(
+    params: QueryInputWithLimit,
+  ): Promise<QueryResult<DataModel>> {
+    if (!params.filterExpression) {
+      // Since there are no filter expressions, DynamoDB will automatically
+      // fulfill the `limit` property.
+      return this.query(params);
+    }
+
+    // create a shallow copy of params since we mutate the top level properties
+    params = {
+      ...params,
+    };
+
+    const cursor = decodeQueryUntilLimitCursor(params.startAt);
+
+    // Use `cursor.lastKey` for the actual params that will
+    // be sent to query(...).
+    //
+    // `cursor.skip` will be used to skip items on our function.
+    params.startAt = cursor.lastKey;
+
+    const items: DataModel[] = [];
+    const limit = params.limit;
+    let lastKey: string | undefined;
+
+    do {
+      const queryResult = await this.query(params);
+      const curItems = queryResult.items;
+      const curLen = curItems.length;
+
+      for (let i = cursor.skip; i < curLen; i++) {
+        const item = curItems[i];
+        items.push(item);
+        if (items.length >= limit) {
+          // we reached our limit so we need to stop iterator
+          return {
+            items,
+
+            // If `(i < curLen - 1)` then that means that we did not read
+            // one or more records on the current page. That means that
+            // we will need to read this page again but skip the records
+            // that we have already read.
+            lastKey:
+              i < curLen - 1
+                ? encodeQueryUntilLimitCursor(params.startAt, i + 1)
+                : encodeQueryUntilLimitCursor(queryResult.lastKey, 0),
+          };
+        }
+      }
+
+      // only apply skip after the first query so we reset it here
+      cursor.skip = 0;
+      lastKey = queryResult.lastKey;
+      params.startAt = lastKey;
+    } while (lastKey);
+
+    // if we got here then we exhausted all of the pages
+    return {
+      items,
+      lastKey: undefined,
+    };
+  }
+
+  /**
+   * Scans the table
+   */
+  async scan(input: ScanInput = {}): Promise<QueryResult<DataModel>> {
+    const {
+      index,
+      startAt,
+      attributeNames,
+      attributeValues,
+      filterExpression,
+      limit = DEFAULT_QUERY_LIMIT,
+    } = input;
+
+    let startKey: KeySchema | undefined;
+
+    if (startAt) {
+      startKey = decodeExclusiveStartKey<KeySchema>(startAt);
+    }
+
+    const result = await this.documentClient
+      .scan({
+        TableName: this.tableName,
+        IndexName: index,
+        Limit: limit,
+        ExclusiveStartKey: startKey,
+        FilterExpression: filterExpression,
+        ExpressionAttributeNames: attributeNames,
+        ExpressionAttributeValues: attributeValues,
+      })
+      .promise();
+
+    return {
+      items: result.Items as DataModel[],
+      lastKey: result.LastEvaluatedKey
+        ? encodeExclusiveStartKey<KeySchema>(
+            result.LastEvaluatedKey as KeySchema,
+          )
+        : undefined,
+    };
+  }
+
+  async batchWrite(
+    operations: BatchWriteOperation<DataModel, KeySchema>[],
+  ): Promise<BatchWriteResult<DataModel, KeySchema>> {
+    if (operations.length > MAX_BATCH_OPERATIONS) {
+      throw new Error(
+        `Cannot send more than ${MAX_BATCH_OPERATIONS} operations in a single call.`,
+      );
+    }
+
+    const result = await this.documentClient
+      .batchWrite({
+        RequestItems: {
+          [this.tableName]: operations.map((operation) => {
+            if (isBatchPutOperation(operation)) {
+              return {
+                PutRequest: {
+                  Item: operation.put,
+                },
+              };
+            } else {
+              return {
+                DeleteRequest: {
+                  Key: operation.delete,
+                },
+              };
+            }
+          }),
+        },
+      })
+      .promise();
+
+    const unprocessedItems =
+      result.UnprocessedItems && result.UnprocessedItems[this.tableName];
+
+    return {
+      unprocessedItems: unprocessedItems
+        ? unprocessedItems.map((item) => {
+            if (item.PutRequest) {
+              return {
+                put: item.PutRequest.Item,
+              } as BatchPutOperation<DataModel>;
+            } else {
+              return {
+                delete: item.DeleteRequest!.Key,
+              } as BatchDeleteOperation<KeySchema>;
+            }
+          })
+        : undefined,
+    };
+  }
+
+  async batchGet(
+    keys: KeySchema[],
+  ): Promise<BatchGetResult<DataModel, KeySchema>> {
+    if (keys.length > MAX_BATCH_OPERATIONS) {
+      throw new Error(
+        `Cannot fetch more than ${MAX_BATCH_OPERATIONS} items in a single call.`,
+      );
+    }
+
+    const result = await this.documentClient
+      .batchGet({
+        RequestItems: {
+          [this.tableName]: {
+            Keys: keys,
+          },
+        },
+      })
+      .promise();
+
+    const items = result.Responses && result.Responses[this.tableName];
+    const unprocessedKeys =
+      result.UnprocessedKeys && result.UnprocessedKeys[this.tableName];
+
+    return {
+      items: (items || []) as DataModel[],
+      unprocessedKeys: unprocessedKeys
+        ? (unprocessedKeys.Keys as KeySchema[])
+        : undefined,
+    };
+  }
+}
