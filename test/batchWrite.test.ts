@@ -1,7 +1,11 @@
-import TestContext, { documentClient } from './helpers/TestContext';
+import TestContext, {
+  documentClient,
+  DataModel,
+  KeySchema,
+} from './helpers/TestContext';
 import { v4 as uuid } from 'uuid';
 import partition from 'lodash.partition';
-import times from 'lodash.times';
+import { BatchWriteOperation } from 'src';
 
 let context: TestContext;
 const items: any[] = [];
@@ -126,7 +130,11 @@ test('should allow for a mix of put and delete operations to be performed', asyn
 });
 
 test('should reject if the size of the operation is over 25', () => {
-  const operations = times(26, () => ({ put: items[0] }));
+  const operations: BatchWriteOperation<DataModel, KeySchema>[] = [];
+
+  for (let i = 0; i < 26; i++) {
+    operations.push({ put: items[0] });
+  }
 
   return expect(context.dao.batchWrite(operations)).rejects.toThrow(
     /Cannot send more than 25 operations/,
