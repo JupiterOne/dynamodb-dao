@@ -208,6 +208,19 @@ export function decodeQueryUntilLimitCursor(cursor: string | undefined) {
 }
 
 /**
+ * This type is used to force functions like `incr` and `decr` to only take
+ * properties from the `DataModel` that are type "number".
+ *
+ * See: https://stackoverflow.com/a/49797062
+ */
+export type NumberPropertiesInType<T> = Pick<
+  T,
+  {
+    [K in keyof T]: T[K] extends number ? K : never;
+  }[keyof T]
+>;
+
+/**
  * A base dynamodb dao class that enforces types
  */
 export default class DynamoDbDao<DataModel, KeySchema> {
@@ -288,6 +301,56 @@ export default class DynamoDbDao<DataModel, KeySchema> {
           ...updateOptions,
         }),
       )
+      .promise();
+
+    return attributes as DataModel;
+  }
+
+  async incr(
+    key: KeySchema,
+    attr: keyof NumberPropertiesInType<DataModel>,
+    incrBy: number = 1,
+  ): Promise<DataModel> {
+    const { Attributes: attributes } = await this.documentClient
+      .update({
+        TableName: this.tableName,
+        Key: key,
+        UpdateExpression:
+          'SET #incrAttr = if_not_exists(#incrAttr, :start) + :inc',
+        ExpressionAttributeNames: {
+          '#incrAttr': attr as string,
+        },
+        ExpressionAttributeValues: {
+          ':inc': incrBy,
+          ':start': 0,
+        },
+        ReturnValues: 'ALL_NEW',
+      })
+      .promise();
+
+    return attributes as DataModel;
+  }
+
+  async decr(
+    key: KeySchema,
+    attr: keyof NumberPropertiesInType<DataModel>,
+    decrBy: number = 1,
+  ): Promise<DataModel> {
+    const { Attributes: attributes } = await this.documentClient
+      .update({
+        TableName: this.tableName,
+        Key: key,
+        UpdateExpression:
+          'SET #decrAttr = if_not_exists(#decrAttr, :start) - :dec',
+        ExpressionAttributeNames: {
+          '#decrAttr': attr as string,
+        },
+        ExpressionAttributeValues: {
+          ':dec': decrBy,
+          ':start': 0,
+        },
+        ReturnValues: 'ALL_NEW',
+      })
       .promise();
 
     return attributes as DataModel;

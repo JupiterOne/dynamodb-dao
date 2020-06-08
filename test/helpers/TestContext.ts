@@ -7,13 +7,14 @@ import { v4 as uuid } from 'uuid';
 
 const { DYNAMODB_ENDPOINT = 'http://localhost:8000' } = process.env;
 
-interface KeySchema {
+export interface KeySchema {
   id: string;
 }
 
-interface DataModel extends KeySchema {
+export interface DataModel extends KeySchema {
   test: string;
   status?: string;
+  version?: number;
 }
 
 const dynamodb = new DynamoDB({

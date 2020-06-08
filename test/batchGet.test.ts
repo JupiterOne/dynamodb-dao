@@ -1,5 +1,4 @@
-import TestContext, { documentClient } from './helpers/TestContext';
-import times from 'lodash.times';
+import TestContext, { documentClient, KeySchema } from './helpers/TestContext';
 import { v4 as uuid } from 'uuid';
 
 let context: TestContext;
@@ -69,7 +68,11 @@ test('should return unprocessed keys if there are any', async () => {
 });
 
 test('should reject if the size of the operation is over 25', () => {
-  const keys = times(26, () => ({ id: items[0].id }));
+  const keys: KeySchema[] = [];
+
+  for (let i = 0; i < 26; i++) {
+    keys.push({ id: items[0].id });
+  }
 
   return expect(context.dao.batchGet(keys)).rejects.toThrow(
     /Cannot fetch more than 25 items/,

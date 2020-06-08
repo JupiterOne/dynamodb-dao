@@ -29,6 +29,7 @@ interface MyDocument {
   id: string;
   accountId: string;
   name: string;
+  total?: number;
 }
 
 // Key schema should have one or two properties which correspond to
@@ -96,6 +97,44 @@ await myDocumentDao.put({
 
 ```javascript
 await myDocumentDao.delete({ id, accountId });
+```
+
+**Incrementing/Decrementing**
+
+NOTE: This should only be used where overcounting and undercounting can be
+tolerated. See
+[the DynamoDB atomic counter documentation](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/WorkingWithItems.html#WorkingWithItems.AtomicCounters)
+for more information.
+
+If a property does not already exist, the initial value is assigned `0` and
+incremented/decremented from `0`.
+
+```ts
+// `total` will have the value `5`
+const { total } = await myDocumentDao.incr(
+  // The key
+  {
+    id: 'abc',
+    accountId: 'def',
+  },
+  // The `number` property to increment
+  'total',
+  // The number to increment by. Defaults to 1.
+  5,
+);
+
+// `total` will have the value `-5`
+const { total } = await myDocumentDao.decr(
+  // The key
+  {
+    id: '123',
+    accountId: 'def',
+  },
+  // The `number` property to increment
+  'total',
+  // The number to decrement by. Defaults to 1.
+  5,
+);
 ```
 
 ## Developing
