@@ -1,6 +1,6 @@
 {
   "name": "@jupiterone/dynamodb-dao",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "DynamoDB Data Access Object (DAO) helper library",
   "main": "index.js",
   "types": "index.d.ts",
