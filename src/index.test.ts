@@ -552,3 +552,39 @@ test('#decodeQueryUntilLimitCursor should throw error for invalid skip in cursor
     decodeQueryUntilLimitCursor('blah|blah');
   }).toThrowError(/Invalid cursor/);
 });
+
+test('#scan should error if segment is provided but totalSegments is not', async () => {
+  jest.spyOn(documentClient, 'scan').mockReturnValue({
+    promise: () =>
+      Promise.resolve({
+        Items: [],
+        LastEvaluatedKey: undefined,
+      }),
+  } as any);
+
+  await expect(
+    testDao.scan({
+      segment: 1,
+    }),
+  ).rejects.toThrow(
+    'If segment is defined, totalSegments must also be defined.',
+  );
+});
+
+test('#scan should error if totalSegments is provided but segment is not', async () => {
+  jest.spyOn(documentClient, 'scan').mockReturnValue({
+    promise: () =>
+      Promise.resolve({
+        Items: [],
+        LastEvaluatedKey: undefined,
+      }),
+  } as any);
+
+  await expect(
+    testDao.scan({
+      totalSegments: 10039912993994,
+    }),
+  ).rejects.toThrow(
+    'If totalSegments is defined, segment must also be defined.',
+  );
+});
