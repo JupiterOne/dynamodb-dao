@@ -3,7 +3,7 @@ import { DocumentClient } from 'aws-sdk/clients/dynamodb';
 type AttributeNames = Record<string, string>;
 type AttributeValues = Record<string, any>;
 
-export interface ScanInput {
+interface BaseScanInput {
   index?: string;
   limit?: number;
   startAt?: string;
@@ -12,13 +12,18 @@ export interface ScanInput {
   attributeValues?: AttributeValues;
 }
 
+export interface ScanInput extends BaseScanInput {
+  segment?: number;
+  totalSegments?: number;
+}
+
 export interface CountOutput {
   count?: number;
   scannedCount?: number;
   lastKey?: string;
 }
 
-export interface QueryInput extends ScanInput {
+export interface QueryInput extends BaseScanInput {
   scanIndexForward?: boolean;
   keyConditionExpression: string;
   attributeValues: AttributeValues;
@@ -170,7 +175,7 @@ interface DynamoDbDaoInput {
   documentClient: DocumentClient;
 }
 
-function invalidCursorError(cursor: string) {
+function invalidCursorError(cursor: string): Error {
   const err = new Error(
     `Invalid cursor for queryUntilLimitReached(...) function (cursor=${cursor})`,
   );
@@ -181,11 +186,13 @@ function invalidCursorError(cursor: string) {
 export function encodeQueryUntilLimitCursor(
   lastKey: string | undefined,
   skip: number | undefined,
-) {
+): string {
   return `${skip || 0}|${lastKey || ''}`;
 }
 
-export function decodeQueryUntilLimitCursor(cursor: string | undefined) {
+export function decodeQueryUntilLimitCursor(
+  cursor: string | undefined,
+): { skip: number; lastKey: string | undefined } {
   if (!cursor) {
     return {
       skip: 0,
@@ -309,7 +316,7 @@ export default class DynamoDbDao<DataModel, KeySchema> {
   async incr(
     key: KeySchema,
     attr: keyof NumberPropertiesInType<DataModel>,
-    incrBy: number = 1,
+    incrBy = 1,
   ): Promise<DataModel> {
     const { Attributes: attributes } = await this.documentClient
       .update({
@@ -334,7 +341,7 @@ export default class DynamoDbDao<DataModel, KeySchema> {
   async decr(
     key: KeySchema,
     attr: keyof NumberPropertiesInType<DataModel>,
-    decrBy: number = 1,
+    decrBy = 1,
   ): Promise<DataModel> {
     const { Attributes: attributes } = await this.documentClient
       .update({
@@ -520,8 +527,22 @@ export default class DynamoDbDao<DataModel, KeySchema> {
       attributeNames,
       attributeValues,
       filterExpression,
+      segment,
+      totalSegments,
       limit = DEFAULT_QUERY_LIMIT,
     } = input;
+
+    if (segment !== undefined && totalSegments === undefined) {
+      throw new Error(
+        'If segment is defined, totalSegments must also be defined.',
+      );
+    }
+
+    if (segment === undefined && totalSegments !== undefined) {
+      throw new Error(
+        'If totalSegments is defined, segment must also be defined.',
+      );
+    }
 
     let startKey: KeySchema | undefined;
 
@@ -538,6 +559,8 @@ export default class DynamoDbDao<DataModel, KeySchema> {
         FilterExpression: filterExpression,
         ExpressionAttributeNames: attributeNames,
         ExpressionAttributeValues: attributeValues,
+        Segment: segment,
+        TotalSegments: totalSegments,
       })
       .promise();
 
@@ -594,7 +617,7 @@ export default class DynamoDbDao<DataModel, KeySchema> {
               } as BatchPutOperation<DataModel>;
             } else {
               return {
-                delete: item.DeleteRequest!.Key,
+                delete: item.DeleteRequest.Key,
               } as BatchDeleteOperation<KeySchema>;
             }
           })

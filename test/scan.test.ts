@@ -103,3 +103,41 @@ test('should allow for filterExpression to be provided', async () => {
 
   expect(results).toEqual(expect.arrayContaining([items[0], items[1]]));
 });
+
+async function runSegmentTillFinished(
+  context: TestContext,
+  segment: number,
+  totalSegments: number,
+): Promise<any[]> {
+  const allItems: any[] = [];
+  const { dao } = context;
+  let cursor: string | undefined;
+  do {
+    const { items, lastKey } = await dao.scan({
+      segment,
+      totalSegments,
+    });
+    allItems.push(...items);
+    cursor = lastKey;
+  } while (cursor);
+  return allItems;
+}
+
+test('should allow for segment and totalSegments to be provided for parallel scans', async () => {
+  const TOTAL_SEGMENTS = 2;
+
+  const promises: Promise<any[]>[] = [];
+  for (let segment = 0; segment < TOTAL_SEGMENTS; segment++) {
+    promises.push(runSegmentTillFinished(context, segment, TOTAL_SEGMENTS));
+  }
+
+  const results = await Promise.all(promises);
+
+  const allItems: any[] = [];
+
+  for (const result of results) {
+    allItems.push(...result);
+  }
+
+  expect(allItems).toEqual(expect.arrayContaining(items));
+});
