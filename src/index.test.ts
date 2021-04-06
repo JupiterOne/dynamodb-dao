@@ -138,6 +138,40 @@ keyConditionExpression, and attributeValues`, async () => {
   });
 });
 
+test('#query should allow consistent reads', async () => {
+  const lastEvaluatedKey = { id: uuid() };
+  const keyConditionExpression = 'id = :id';
+  const attributeValues = { id: uuid() };
+  const index = uuid();
+  const limit = 50;
+
+  jest.spyOn(documentClient, 'query').mockReturnValue({
+    promise: () =>
+      Promise.resolve({
+        Items: [testModelInstance],
+        LastEvaluatedKey: lastEvaluatedKey,
+      }),
+  } as any);
+
+  await testDao.query({
+    index,
+    limit,
+    attributeValues,
+    keyConditionExpression,
+    consistentRead: true,
+  });
+
+  expect(documentClient.query).toHaveBeenCalledWith({
+    TableName: tableName,
+    IndexName: index,
+    Limit: limit,
+    ExclusiveStartKey: undefined,
+    KeyConditionExpression: keyConditionExpression,
+    ExpressionAttributeValues: attributeValues,
+    ConsistentRead: true,
+  });
+});
+
 test(`#query should have default query limit`, async () => {
   const lastEvaluatedKey = { id: uuid() };
   const keyConditionExpression = 'id = :id';
@@ -551,6 +585,26 @@ test('#decodeQueryUntilLimitCursor should throw error for invalid skip in cursor
   expect(() => {
     decodeQueryUntilLimitCursor('blah|blah');
   }).toThrowError(/Invalid cursor/);
+});
+
+test('#scan should allow consistent reads', async () => {
+  jest.spyOn(documentClient, 'scan').mockReturnValue({
+    promise: () =>
+      Promise.resolve({
+        Items: [],
+        LastEvaluatedKey: undefined,
+      }),
+  } as any);
+
+  await testDao.scan({
+    consistentRead: true,
+  });
+
+  expect(documentClient.scan).toHaveBeenCalledWith({
+    ConsistentRead: true,
+    Limit: 50,
+    TableName: tableName,
+  });
 });
 
 test('#scan should error if segment is provided but totalSegments is not', async () => {
