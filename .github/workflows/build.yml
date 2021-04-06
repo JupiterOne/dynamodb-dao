@@ -37,6 +37,8 @@ jobs:
     if: github.ref == 'refs/heads/master'
     strategy:
       fail-fast: false
+      matrix:
+        node: [12]
 
     steps:
       - name: Setup Node
@@ -57,7 +59,7 @@ jobs:
           if git describe --exact-match --match "v*.*.*" HEAD^2
           then
             echo "Found version commit tag. Publishing."
-            echo "::set-env name=publish::true"
+            echo "publish=true" >> $GITHUB_ENV
           else
             echo "Version commit tag not found. Not publishing."
           fi
