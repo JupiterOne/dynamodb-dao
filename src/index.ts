@@ -10,6 +10,7 @@ interface BaseScanInput {
   filterExpression?: string;
   attributeNames?: AttributeNames;
   attributeValues?: AttributeValues;
+  consistentRead?: boolean;
 }
 
 export interface ScanInput extends BaseScanInput {
@@ -27,6 +28,7 @@ export interface QueryInput extends BaseScanInput {
   scanIndexForward?: boolean;
   keyConditionExpression: string;
   attributeValues: AttributeValues;
+  consistentRead?: boolean;
 }
 
 export interface QueryInputWithLimit extends QueryInput {
@@ -421,6 +423,7 @@ export default class DynamoDbDao<DataModel, KeySchema> {
       keyConditionExpression,
       filterExpression,
       limit = DEFAULT_QUERY_LIMIT,
+      consistentRead,
     } = input;
 
     let startKey: KeySchema | undefined;
@@ -440,6 +443,7 @@ export default class DynamoDbDao<DataModel, KeySchema> {
         FilterExpression: filterExpression,
         ExpressionAttributeNames: attributeNames,
         ExpressionAttributeValues: attributeValues,
+        ConsistentRead: consistentRead,
       })
       .promise();
 
@@ -530,6 +534,7 @@ export default class DynamoDbDao<DataModel, KeySchema> {
       segment,
       totalSegments,
       limit = DEFAULT_QUERY_LIMIT,
+      consistentRead,
     } = input;
 
     if (segment !== undefined && totalSegments === undefined) {
@@ -561,6 +566,7 @@ export default class DynamoDbDao<DataModel, KeySchema> {
         ExpressionAttributeValues: attributeValues,
         Segment: segment,
         TotalSegments: totalSegments,
+        ConsistentRead: consistentRead,
       })
       .promise();
 
