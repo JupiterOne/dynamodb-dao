@@ -91,18 +91,18 @@ test('should allow for a expression attribute names to be provided', async () =>
   return expect(promise).rejects.toThrow('The conditional request failed');
 });
 
-test('returns empty object with returnreturnedPreviousValues upon CREATE', async () => {
+test('returns empty object with returnOldValues upon CREATE', async () => {
   const { dao } = context;
   const createOrUpdate = { id: uuid(), test: uuid() };
   const result = await dao.put(createOrUpdate, {
-    returnreturnedPreviousValues: true,
+    returnOldValues: true,
   });
 
   // assuming a new entry, we should see {}:
   expect(result).toMatchObject({});
 });
 
-test('returns old values with returnreturnedPreviousValues upon UPDATE', async () => {
+test('returns old values with returnOldValues upon UPDATE', async () => {
   const { tableName, dao } = context;
   const id = uuid();
   const getItem = () => ({
