@@ -291,7 +291,7 @@ export default class DynamoDbDao<DataModel, KeySchema> {
       ExpressionAttributeValues: options.attributeValues,
     };
 
-    // if the caller supplied returnValues, return them instead:
+    // if the caller set a true returnOldValues, return them instead:
     if (options.returnOldValues) {
       const { Attributes: attributes } = await this.documentClient
         .put({
