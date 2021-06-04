@@ -91,17 +91,28 @@ test('should allow for a expression attribute names to be provided', async () =>
   return expect(promise).rejects.toThrow('The conditional request failed');
 });
 
-test('should accept new option to get back old values', async () => {
+test('returns empty object with returnOldValues upon CREATE', async () => {
+  const { dao } = context;
+  const createOrUpdate = { id: uuid(), test: uuid() };
+  const result = await dao.put(createOrUpdate, {
+    returnOldValues: true,
+  });
+
+  // assuming a new entry, we should see {}:
+  expect(result).toMatchObject({});
+});
+
+test('returns old values with returnOldValues upon UPDATE', async () => {
   const { tableName, dao } = context;
   const id = uuid();
   const getItem = () => ({
     id: id,
     test: uuid(),
   });
-  const old_write = getItem();
-  const update = getItem();
+  const old_write = getItem(),
+    createOrUpdate = getItem();
 
-  // put data into dynamodb
+  // put data into dynamodb: after update, we should see this returned:
   await documentClient
     .put({
       TableName: tableName,
@@ -109,10 +120,12 @@ test('should accept new option to get back old values', async () => {
     })
     .promise();
 
-  const oldValues = await dao.put(update, {
-    // this will cause a failure, because the condition won't match
-    returnValues: 'ALL_OLD',
+  const oldValues = await dao.put(createOrUpdate, {
+    // pass a boolean to get back pre-UPDATE data:
+    returnOldValues: true,
   });
 
+  // the data has been updated from `old_write` to `update`
+  // the function should return old_write's properties:
   expect(oldValues).toMatchObject(old_write);
 });

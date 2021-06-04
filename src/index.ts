@@ -1,4 +1,4 @@
-import { DocumentClient, ReturnValue } from 'aws-sdk/clients/dynamodb';
+import { DocumentClient } from 'aws-sdk/clients/dynamodb';
 
 type AttributeNames = Record<string, string>;
 type AttributeValues = Record<string, any>;
@@ -93,11 +93,11 @@ export interface ConditionalOptions {
   attributeNames?: AttributeNames;
   attributeValues?: AttributeValues;
 }
-export interface PutConditionalOptions extends ConditionalOptions {
-  returnValues?: ReturnValue;
+export interface PutOptionalParamters {
+  returnOldValues?: boolean;
 }
 
-export type PutOptions = PutConditionalOptions;
+export type PutOptions = ConditionalOptions & PutOptionalParamters;
 export type UpdateOptions = ConditionalOptions;
 export type DeleteOptions = ConditionalOptions;
 
@@ -292,14 +292,14 @@ export default class DynamoDbDao<DataModel, KeySchema> {
     };
 
     // if the caller supplied returnValues, return them instead:
-    if (options.returnValues) {
+    if (options.returnOldValues) {
       const { Attributes: attributes } = await this.documentClient
         .put({
           ...payload,
-          ReturnValues: options.returnValues,
+          ReturnValues: 'ALL_OLD',
         })
         .promise();
-      return attributes as DataModel;
+      return (attributes ?? {}) as DataModel;
     }
 
     await this.documentClient.put(payload).promise();
