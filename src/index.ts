@@ -1,4 +1,4 @@
-import { DocumentClient } from 'aws-sdk/clients/dynamodb';
+import { DocumentClient, ReturnValue } from 'aws-sdk/clients/dynamodb';
 
 type AttributeNames = Record<string, string>;
 type AttributeValues = Record<string, any>;
@@ -88,14 +88,16 @@ export function isBatchPutOperation<DataModel, KeySchema>(
 ): operation is BatchPutOperation<DataModel> {
   return (operation as any).put !== undefined;
 }
-
 export interface ConditionalOptions {
   conditionExpression?: string;
   attributeNames?: AttributeNames;
   attributeValues?: AttributeValues;
 }
+export interface PutConditionalOptions extends ConditionalOptions {
+  returnValues?: ReturnValue;
+}
 
-export type PutOptions = ConditionalOptions;
+export type PutOptions = PutConditionalOptions;
 export type UpdateOptions = ConditionalOptions;
 export type DeleteOptions = ConditionalOptions;
 
@@ -281,15 +283,26 @@ export default class DynamoDbDao<DataModel, KeySchema> {
    * Creates/Updates an item in the table
    */
   async put(data: DataModel, options: PutOptions = {}): Promise<DataModel> {
-    await this.documentClient
-      .put({
-        TableName: this.tableName,
-        Item: data,
-        ConditionExpression: options.conditionExpression,
-        ExpressionAttributeNames: options.attributeNames,
-        ExpressionAttributeValues: options.attributeValues,
-      })
-      .promise();
+    const payload = {
+      TableName: this.tableName,
+      Item: data,
+      ConditionExpression: options.conditionExpression,
+      ExpressionAttributeNames: options.attributeNames,
+      ExpressionAttributeValues: options.attributeValues,
+    };
+
+    // if the caller supplied returnValues, return them instead:
+    if (options.returnValues) {
+      const { Attributes: attributes } = await this.documentClient
+        .put({
+          ...payload,
+          ReturnValues: options.returnValues,
+        })
+        .promise();
+      return attributes as DataModel;
+    }
+
+    await this.documentClient.put(payload).promise();
     return data;
   }
 

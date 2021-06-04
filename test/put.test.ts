@@ -90,3 +90,29 @@ test('should allow for a expression attribute names to be provided', async () =>
 
   return expect(promise).rejects.toThrow('The conditional request failed');
 });
+
+test('should accept new option to get back old values', async () => {
+  const { tableName, dao } = context;
+  const id = uuid();
+  const getItem = () => ({
+    id: id,
+    test: uuid(),
+  });
+  const old_write = getItem();
+  const update = getItem();
+
+  // put data into dynamodb
+  await documentClient
+    .put({
+      TableName: tableName,
+      Item: old_write,
+    })
+    .promise();
+
+  const oldValues = await dao.put(update, {
+    // this will cause a failure, because the condition won't match
+    returnValues: 'ALL_OLD',
+  });
+
+  expect(oldValues).toMatchObject(old_write);
+});
