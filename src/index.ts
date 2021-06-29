@@ -127,7 +127,7 @@ export function generateUpdateParams(
   for (let i = 0; i < keys.length; i++) {
     const name = keys[i];
 
-    const valueName = `:${name}`;
+    const valueName = `:a${i}`;
     const attributeName = `#a${i}`;
 
     const value = (data as any)[name];
@@ -301,15 +301,14 @@ export default class DynamoDbDao<DataModel, KeySchema> {
     data: Partial<DataModel>,
     updateOptions?: UpdateOptions,
   ): Promise<DataModel> {
+    const params = generateUpdateParams({
+      tableName: this.tableName,
+      key,
+      data,
+      ...updateOptions,
+    });
     const { Attributes: attributes } = await this.documentClient
-      .update(
-        generateUpdateParams({
-          tableName: this.tableName,
-          key,
-          data,
-          ...updateOptions,
-        }),
-      )
+      .update(params)
       .promise();
 
     return attributes as DataModel;

@@ -437,16 +437,16 @@ test('#generateUpdateParams should generate set params for documentClient.update
       TableName: options.tableName,
       Key: options.key,
       ReturnValues: 'ALL_NEW',
-      UpdateExpression: 'set #a0 = :a, #a1 = :b, #a2 = :c',
+      UpdateExpression: 'set #a0 = :a0, #a1 = :a1, #a2 = :a2',
       ExpressionAttributeNames: {
         '#a0': 'a',
         '#a1': 'b',
         '#a2': 'c',
       },
       ExpressionAttributeValues: {
-        ':a': options.data.a,
-        ':b': options.data.b,
-        ':c': options.data.c,
+        ':a0': options.data.a,
+        ':a1': options.data.b,
+        ':a2': options.data.c,
       },
     });
   }
@@ -468,12 +468,12 @@ test('#generateUpdateParams should generate set params for documentClient.update
       TableName: options.tableName,
       Key: options.key,
       ReturnValues: 'ALL_NEW',
-      UpdateExpression: 'set #a0 = :a',
+      UpdateExpression: 'set #a0 = :a0',
       ExpressionAttributeNames: {
         '#a0': 'a',
       },
       ExpressionAttributeValues: {
-        ':a': options.data.a,
+        ':a0': options.data.a,
       },
     });
   }
@@ -526,15 +526,15 @@ test('#generateUpdateParams should generate both update and remove params for do
       TableName: options.tableName,
       Key: options.key,
       ReturnValues: 'ALL_NEW',
-      UpdateExpression: 'set #a0 = :a, #a1 = :b remove #a2',
+      UpdateExpression: 'set #a0 = :a0, #a1 = :a1 remove #a2',
       ExpressionAttributeNames: {
         '#a0': 'a',
         '#a1': 'b',
         '#a2': 'c',
       },
       ExpressionAttributeValues: {
-        ':a': options.data.a,
-        ':b': options.data.b,
+        ':a0': options.data.a,
+        ':a1': options.data.b,
       },
     });
   }
