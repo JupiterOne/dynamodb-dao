@@ -1,7 +1,6 @@
 {
   "extends": "./node_modules/@jupiterone/typescript-tools/config/typescript-node12",
   "compilerOptions": {
-    "rootDir": ".",
     "outDir": "dist",
     "skipLibCheck": true,
     "esModuleInterop": true
