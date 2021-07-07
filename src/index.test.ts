@@ -254,7 +254,7 @@ test(`#count should properly decode the input start key`, async () => {
 
   const exclusiveStartKey = { id: uuid() };
   const startAt = Buffer.from(JSON.stringify(exclusiveStartKey)).toString(
-    'base64',
+    'base64'
   );
 
   const result = await testDao.count({
@@ -337,7 +337,7 @@ test(`#query should properly decode the input start key`, async () => {
 
   const exclusiveStartKey = { id: uuid() };
   const startAt = Buffer.from(JSON.stringify(exclusiveStartKey)).toString(
-    'base64',
+    'base64'
   );
 
   await testDao.query({
@@ -381,7 +381,7 @@ test(`#query should throw error for invalid exclusiveStartKey`, async () => {
       startAt,
       attributeValues,
       keyConditionExpression,
-    }),
+    })
   ).rejects.toThrow('Invalid pagination token provided');
 });
 
@@ -411,7 +411,7 @@ test(`#update should be supported`, async () => {
     {
       id: key.id,
     },
-    data,
+    data
   );
 
   expect(documentClient.update).toHaveBeenCalledWith(updateParams);
@@ -618,9 +618,9 @@ test('#scan should error if segment is provided but totalSegments is not', async
   await expect(
     testDao.scan({
       segment: 1,
-    }),
+    })
   ).rejects.toThrow(
-    'If segment is defined, totalSegments must also be defined.',
+    'If segment is defined, totalSegments must also be defined.'
   );
 });
 
@@ -636,9 +636,9 @@ test('#scan should error if totalSegments is provided but segment is not', async
   await expect(
     testDao.scan({
       totalSegments: 10039912993994,
-    }),
+    })
   ).rejects.toThrow(
-    'If totalSegments is defined, segment must also be defined.',
+    'If totalSegments is defined, segment must also be defined.'
   );
 });
 
@@ -653,7 +653,7 @@ test('#batchWriteWithExponentialBackoff should error when a batchWrite fails', a
     testDao.batchPutWithExponentialBackoff({
       logger: mockLogger,
       items: [testModelInstance, testModelInstance, testModelInstance],
-    }),
+    })
   ).rejects.toThrowError();
 });
 
@@ -704,7 +704,7 @@ test('#batchWriteWithExponentialBackoff should stop retrying after hitting max a
       logger: mockLogger,
       items: [testModelInstance, testModelInstance, testModelInstance],
       maxRetries: 2,
-    }),
+    })
   ).rejects.toThrowError();
 
   // original request, plus two retries 3 retries (it's 0 based)

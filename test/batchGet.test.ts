@@ -1,5 +1,5 @@
-import TestContext, { documentClient, KeySchema } from './helpers/TestContext';
 import { v4 as uuid } from 'uuid';
+import TestContext, { documentClient, KeySchema } from './helpers/TestContext';
 
 let context: TestContext;
 const items: any[] = [];
@@ -41,7 +41,7 @@ test('should allow for bulk get operations to be performed', async () => {
     .promise();
 
   const { items: returnedItems } = await context.dao.batchGet(
-    items.map((item) => ({ id: item.id })),
+    items.map((item) => ({ id: item.id }))
   );
 
   expect(returnedItems.length).toEqual(items.length);
@@ -61,7 +61,7 @@ test('should return unprocessed keys if there are any', async () => {
   } as any);
 
   const { unprocessedKeys } = await context.dao.batchGet(
-    items.map((item) => ({ id: item.id })),
+    items.map((item) => ({ id: item.id }))
   );
 
   expect(unprocessedKeys).toEqual([{ id: items[0].id }]);
@@ -75,6 +75,6 @@ test('should reject if the size of the operation is over 25', () => {
   }
 
   return expect(context.dao.batchGet(keys)).rejects.toThrow(
-    /Cannot fetch more than 25 items/,
+    /Cannot fetch more than 25 items/
   );
 });

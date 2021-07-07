@@ -1,9 +1,8 @@
 /* istanbul ignore file */
 
 import { DynamoDB } from 'aws-sdk';
-import DynamoDbDao from '../../src';
-
 import { v4 as uuid } from 'uuid';
+import DynamoDbDao from '../../src';
 
 const { DYNAMODB_ENDPOINT = 'http://localhost:8000' } = process.env;
 
@@ -37,7 +36,7 @@ export default class TestContext {
   constructor(
     tableName: string,
     indexName: string,
-    dao: DynamoDbDao<DataModel, KeySchema>,
+    dao: DynamoDbDao<DataModel, KeySchema>
   ) {
     this.tableName = tableName;
     this.indexName = indexName;
