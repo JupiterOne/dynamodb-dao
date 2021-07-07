@@ -105,7 +105,7 @@ export function decodeExclusiveStartKey<KeySchema>(token: string): KeySchema {
 }
 
 export function isBatchPutOperation<DataModel, KeySchema>(
-  operation: BatchWriteOperation<DataModel, KeySchema>,
+  operation: BatchWriteOperation<DataModel, KeySchema>
 ): operation is BatchPutOperation<DataModel> {
   return (operation as any).put !== undefined;
 }
@@ -127,7 +127,7 @@ export interface GenerateUpdateParamsInput extends UpdateOptions {
 }
 
 export function generateUpdateParams(
-  options: GenerateUpdateParamsInput,
+  options: GenerateUpdateParamsInput
 ): DocumentClient.UpdateItemInput {
   const setExpressions: string[] = [];
   const removeExpressions: string[] = [];
@@ -200,7 +200,7 @@ interface DynamoDbDaoInput {
 
 function invalidCursorError(cursor: string): Error {
   const err = new Error(
-    `Invalid cursor for queryUntilLimitReached(...) function (cursor=${cursor})`,
+    `Invalid cursor for queryUntilLimitReached(...) function (cursor=${cursor})`
   );
   (err as any).retryable = false;
   return err;
@@ -208,7 +208,7 @@ function invalidCursorError(cursor: string): Error {
 
 export function encodeQueryUntilLimitCursor(
   lastKey: string | undefined,
-  skip: number | undefined,
+  skip: number | undefined
 ): string {
   return `${skip || 0}|${lastKey || ''}`;
 }
@@ -283,7 +283,7 @@ export default class DynamoDbDao<DataModel, KeySchema> {
    */
   async delete(
     key: KeySchema,
-    options: DeleteOptions = {},
+    options: DeleteOptions = {}
   ): Promise<DataModel | undefined> {
     const { Attributes: attributes } = await this.documentClient
       .delete({
@@ -321,7 +321,7 @@ export default class DynamoDbDao<DataModel, KeySchema> {
   async update(
     key: KeySchema,
     data: Partial<DataModel>,
-    updateOptions?: UpdateOptions,
+    updateOptions?: UpdateOptions
   ): Promise<DataModel> {
     const params = generateUpdateParams({
       tableName: this.tableName,
@@ -339,7 +339,7 @@ export default class DynamoDbDao<DataModel, KeySchema> {
   async incr(
     key: KeySchema,
     attr: keyof NumberPropertiesInType<DataModel>,
-    incrBy = 1,
+    incrBy = 1
   ): Promise<DataModel> {
     const { Attributes: attributes } = await this.documentClient
       .update({
@@ -364,7 +364,7 @@ export default class DynamoDbDao<DataModel, KeySchema> {
   async decr(
     key: KeySchema,
     attr: keyof NumberPropertiesInType<DataModel>,
-    decrBy = 1,
+    decrBy = 1
   ): Promise<DataModel> {
     const { Attributes: attributes } = await this.documentClient
       .update({
@@ -425,7 +425,7 @@ export default class DynamoDbDao<DataModel, KeySchema> {
       scannedCount: result.ScannedCount,
       lastKey: result.LastEvaluatedKey
         ? encodeExclusiveStartKey<KeySchema>(
-            result.LastEvaluatedKey as KeySchema,
+            result.LastEvaluatedKey as KeySchema
           )
         : undefined,
     };
@@ -472,14 +472,14 @@ export default class DynamoDbDao<DataModel, KeySchema> {
       items: result.Items as DataModel[],
       lastKey: result.LastEvaluatedKey
         ? encodeExclusiveStartKey<KeySchema>(
-            result.LastEvaluatedKey as KeySchema,
+            result.LastEvaluatedKey as KeySchema
           )
         : undefined,
     };
   }
 
   async queryUntilLimitReached(
-    params: QueryInputWithLimit,
+    params: QueryInputWithLimit
   ): Promise<QueryResult<DataModel>> {
     if (!params.filterExpression) {
       // Since there are no filter expressions, DynamoDB will automatically
@@ -560,13 +560,13 @@ export default class DynamoDbDao<DataModel, KeySchema> {
 
     if (segment !== undefined && totalSegments === undefined) {
       throw new Error(
-        'If segment is defined, totalSegments must also be defined.',
+        'If segment is defined, totalSegments must also be defined.'
       );
     }
 
     if (segment === undefined && totalSegments !== undefined) {
       throw new Error(
-        'If totalSegments is defined, segment must also be defined.',
+        'If totalSegments is defined, segment must also be defined.'
       );
     }
 
@@ -595,18 +595,18 @@ export default class DynamoDbDao<DataModel, KeySchema> {
       items: result.Items as DataModel[],
       lastKey: result.LastEvaluatedKey
         ? encodeExclusiveStartKey<KeySchema>(
-            result.LastEvaluatedKey as KeySchema,
+            result.LastEvaluatedKey as KeySchema
           )
         : undefined,
     };
   }
 
   async batchWrite(
-    operations: BatchWriteOperation<DataModel, KeySchema>[],
+    operations: BatchWriteOperation<DataModel, KeySchema>[]
   ): Promise<BatchWriteResult<DataModel, KeySchema>> {
     if (operations.length > MAX_BATCH_OPERATIONS) {
       throw new Error(
-        `Cannot send more than ${MAX_BATCH_OPERATIONS} operations in a single call.`,
+        `Cannot send more than ${MAX_BATCH_OPERATIONS} operations in a single call.`
       );
     }
 
@@ -653,11 +653,11 @@ export default class DynamoDbDao<DataModel, KeySchema> {
   }
 
   async batchGet(
-    keys: KeySchema[],
+    keys: KeySchema[]
   ): Promise<BatchGetResult<DataModel, KeySchema>> {
     if (keys.length > MAX_BATCH_OPERATIONS) {
       throw new Error(
-        `Cannot fetch more than ${MAX_BATCH_OPERATIONS} items in a single call.`,
+        `Cannot fetch more than ${MAX_BATCH_OPERATIONS} items in a single call.`
       );
     }
 
@@ -684,7 +684,7 @@ export default class DynamoDbDao<DataModel, KeySchema> {
   }
 
   async batchPutWithExponentialBackoff(
-    params: BatchWriteWithExponentialBackoffParams<DataModel, KeySchema>,
+    params: BatchWriteWithExponentialBackoffParams<DataModel, KeySchema>
   ): Promise<void> {
     const {
       items,
@@ -697,7 +697,7 @@ export default class DynamoDbDao<DataModel, KeySchema> {
 
     logger.info(
       { attempts },
-      'Attempting to batch put with exponential backoff',
+      'Attempting to batch put with exponential backoff'
     );
 
     if (items.length === 0) {
@@ -707,7 +707,7 @@ export default class DynamoDbDao<DataModel, KeySchema> {
 
     logger.info(
       { items: items.length, delay, attempts, maxRetries },
-      'Attempting to batch put...',
+      'Attempting to batch put...'
     );
 
     const batches: DataModel[][] = chunk(items, batchWriteLimit);
@@ -721,16 +721,16 @@ export default class DynamoDbDao<DataModel, KeySchema> {
         const result = await this.batchWrite(
           batch.map((batchItem) => ({
             put: batchItem,
-          })),
+          }))
         );
 
         if (result.unprocessedItems) {
           unprocessedItems.push(
-            ...(result.unprocessedItems as BatchPutOperation<DataModel>[]),
+            ...(result.unprocessedItems as BatchPutOperation<DataModel>[])
           );
         }
       },
-      { concurrency: 2 },
+      { concurrency: 2 }
     );
 
     if (unprocessedItems.length && attempts > maxRetries) {
@@ -740,11 +740,11 @@ export default class DynamoDbDao<DataModel, KeySchema> {
           attempts,
           maxRetries,
         },
-        'Found unprocessed items, but reached max attempts.',
+        'Found unprocessed items, but reached max attempts.'
       );
 
       throw new Error(
-        `Failed to process items after attempts (attempts=${attempts})`,
+        `Failed to process items after attempts (attempts=${attempts})`
       );
     } else if (unprocessedItems.length) {
       logger.warn(
@@ -754,7 +754,7 @@ export default class DynamoDbDao<DataModel, KeySchema> {
           maxRetries,
           delay,
         },
-        'Found unprocessed items. Retrying after dely...',
+        'Found unprocessed items. Retrying after dely...'
       );
 
       await sleep(delay);

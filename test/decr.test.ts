@@ -30,7 +30,7 @@ test(`#decr should be supported`, async () => {
     {
       id: key.id,
     },
-    'version' as any,
+    'version' as any
   );
 
   const expected: DataModel = {
@@ -59,7 +59,7 @@ test(`#decr should support passing a custom number to decrement by`, async () =>
       id: key.id,
     },
     'version' as any,
-    3,
+    3
   );
 
   const expected: DataModel = {
@@ -86,7 +86,7 @@ test(`#decr should default to value 0 if property does not exist`, async () => {
     {
       id: key.id,
     },
-    'version' as any,
+    'version' as any
   );
 
   const expected: DataModel = {

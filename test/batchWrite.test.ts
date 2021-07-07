@@ -70,7 +70,7 @@ test('should allow for bulk delete operations to be performed', async () => {
   await context.dao.batchWrite(
     items.map((item) => ({
       delete: { id: item.id },
-    })),
+    }))
   );
 
   const results = await documentClient
@@ -89,7 +89,7 @@ test('should allow for bulk delete operations to be performed', async () => {
 test('should allow for a mix of put and delete operations to be performed', async () => {
   const [itemsToStore, itemsToDelete] = partition(
     items,
-    (item) => item.index % 2,
+    (item) => item.index % 2
   );
 
   const storeItemsToBeDeletedResult = await documentClient
@@ -137,14 +137,14 @@ test('should reject if the size of the operation is over 25', () => {
   }
 
   return expect(context.dao.batchWrite(operations)).rejects.toThrow(
-    /Cannot send more than 25 operations/,
+    /Cannot send more than 25 operations/
   );
 });
 
 test('should return unprocessed items if there are any', async () => {
   const [itemsToStore, itemsToDelete] = partition(
     items,
-    (item) => item.index % 2,
+    (item) => item.index % 2
   );
 
   jest.spyOn(documentClient, 'batchWrite').mockReturnValue({
