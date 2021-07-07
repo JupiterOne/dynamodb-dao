@@ -1,5 +1,5 @@
-import TestContext, { KeySchema, DataModel } from './helpers/TestContext';
 import { v4 as uuid } from 'uuid';
+import TestContext, { DataModel, KeySchema } from './helpers/TestContext';
 
 let context: TestContext;
 
@@ -30,7 +30,7 @@ test(`#decr should be supported`, async () => {
     {
       id: key.id,
     },
-    'version',
+    'version' as any,
   );
 
   const expected: DataModel = {
@@ -58,7 +58,7 @@ test(`#decr should support passing a custom number to decrement by`, async () =>
     {
       id: key.id,
     },
-    'version',
+    'version' as any,
     3,
   );
 
@@ -86,7 +86,7 @@ test(`#decr should default to value 0 if property does not exist`, async () => {
     {
       id: key.id,
     },
-    'version',
+    'version' as any,
   );
 
   const expected: DataModel = {

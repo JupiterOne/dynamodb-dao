@@ -1,14 +1,13 @@
-import AWS from 'aws-sdk';
-
+import * as AWS from 'aws-sdk';
+import { v4 as uuid } from 'uuid';
 import DynamoDbDao, {
-  generateUpdateParams,
+  CountOutput,
+  decodeQueryUntilLimitCursor,
   DEFAULT_QUERY_LIMIT,
   encodeQueryUntilLimitCursor,
-  decodeQueryUntilLimitCursor,
-  CountOutput,
+  generateUpdateParams,
 } from '.';
-
-import { v4 as uuid } from 'uuid';
+import mockLogger from '../test/helpers/mockLogger';
 
 const dynamodb = new AWS.DynamoDB({
   apiVersion: '2012-08-10',
@@ -641,4 +640,97 @@ test('#scan should error if totalSegments is provided but segment is not', async
   ).rejects.toThrow(
     'If totalSegments is defined, segment must also be defined.',
   );
+});
+
+test('#batchWriteWithExponentialBackoff should error when a batchWrite fails', async () => {
+  jest.spyOn(documentClient, 'batchWrite').mockReturnValue({
+    promise: () => {
+      return Promise.reject(new Error('you failed!'));
+    },
+  } as any);
+
+  await expect(
+    testDao.batchPutWithExponentialBackoff({
+      logger: mockLogger,
+      items: [testModelInstance, testModelInstance, testModelInstance],
+    }),
+  ).rejects.toThrowError();
+});
+
+test('#batchWriteWithExponentialBackoff should retry unprocessed items', async () => {
+  const batchWriteSpy = jest
+    .spyOn(documentClient, 'batchWrite')
+    .mockReturnValueOnce({
+      promise: () =>
+        Promise.resolve({
+          UnprocessedItems: {
+            [tableName]: [testModelInstance, testModelInstance],
+          },
+        }),
+    } as any)
+    .mockReturnValue({
+      promise: () =>
+        Promise.resolve({
+          UnprocessedItems: {
+            [tableName]: [],
+          },
+        }),
+    } as any);
+
+  const result = await testDao.batchPutWithExponentialBackoff({
+    logger: mockLogger,
+    items: [testModelInstance, testModelInstance, testModelInstance],
+  });
+
+  expect(result).toBeUndefined();
+  expect(batchWriteSpy).toHaveBeenCalledTimes(2);
+});
+
+test('#batchWriteWithExponentialBackoff should stop retrying after hitting max attempts', async () => {
+  jest.setTimeout(15000);
+  const batchWriteSpy = jest
+    .spyOn(documentClient, 'batchWrite')
+    .mockReturnValue({
+      promise: () =>
+        Promise.resolve({
+          UnprocessedItems: {
+            [tableName]: [testModelInstance, testModelInstance],
+          },
+        }),
+    } as any);
+
+  await expect(
+    testDao.batchPutWithExponentialBackoff({
+      logger: mockLogger,
+      items: [testModelInstance, testModelInstance, testModelInstance],
+      maxRetries: 2,
+    }),
+  ).rejects.toThrowError();
+
+  // original request, plus two retries 3 retries (it's 0 based)
+  expect(batchWriteSpy).toHaveBeenCalledTimes(4);
+});
+
+test('#batchWriteWithExponentialBackoff should respect the batchWriteLimit', async () => {
+  jest.setTimeout(15000);
+  const batchWriteSpy = jest
+    .spyOn(documentClient, 'batchWrite')
+    .mockReturnValue({
+      promise: () =>
+        Promise.resolve({
+          UnprocessedItems: {
+            [tableName]: [],
+          },
+        }),
+    } as any);
+
+  const result = await testDao.batchPutWithExponentialBackoff({
+    logger: mockLogger,
+    items: [testModelInstance, testModelInstance, testModelInstance],
+    batchWriteLimit: 1,
+  });
+
+  expect(result).toBeUndefined();
+  // should result in 3 batches of 1
+  expect(batchWriteSpy).toHaveBeenCalledTimes(3);
 });

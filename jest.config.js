@@ -1,22 +1,12 @@
+/* eslint-disable */
+
+const {
+  buildJestConfig,
+} = require('@jupiterone/typescript-tools/config/jest-util');
 module.exports = {
-  clearMocks: true,
-  preset: 'ts-jest',
-  testMatch: ['**/*test.(js|ts)'],
-  testPathIgnorePatterns: ['<rootDir>/dist/', '<rootDir>/node_modules/'],
-  testEnvironment: 'node',
-  collectCoverage: true,
-  collectCoverageFrom: ['src/**/*.ts'],
-  globals: {
-    'ts-jest': {
-      isolatedModules: true,
-    },
-  },
-  coverageThreshold: {
-    global: {
-      branches: 100,
-      functions: 100,
-      lines: 100,
-      statements: 100,
-    },
-  },
+  ...buildJestConfig({ packageDir: __dirname }),
+  // The below is necessary due to differences between how p-map is packaged and our
+  // generic J1 babel and TS configs
+  transformIgnorePatterns: ['../../node_modules/(?!${p-map})'],
 };
+/* eslint-enable */
