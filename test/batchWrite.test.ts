@@ -1,11 +1,11 @@
+import partition from 'lodash.partition';
+import { v4 as uuid } from 'uuid';
+import { BatchWriteOperation } from '../src';
 import TestContext, {
-  documentClient,
   DataModel,
+  documentClient,
   KeySchema,
 } from './helpers/TestContext';
-import { v4 as uuid } from 'uuid';
-import partition from 'lodash.partition';
-import { BatchWriteOperation } from 'src';
 
 let context: TestContext;
 const items: any[] = [];

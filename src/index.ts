@@ -1,4 +1,7 @@
+import { sleep } from '@lifeomic/attempt';
 import { DocumentClient } from 'aws-sdk/clients/dynamodb';
+import chunk from 'lodash.chunk';
+import pMap from 'p-map';
 
 type AttributeNames = Record<string, string>;
 type AttributeValues = Record<string, any>;
@@ -59,6 +62,24 @@ export interface BatchWriteResult<DataModel, KeySchema> {
 export interface BatchGetResult<DataModel, KeySchema> {
   items: DataModel[];
   unprocessedKeys?: KeySchema[];
+}
+
+export interface BatchPutParams<T, U> {
+  batch: T[];
+  logger: any;
+}
+
+interface BaseBatchWriteWithExponentialBackoffParams<T, U> {
+  logger: any;
+  delay?: number;
+  attempts?: number;
+  maxRetries?: number;
+  batchWriteLimit?: number;
+}
+
+interface BatchWriteWithExponentialBackoffParams<T, U>
+  extends BaseBatchWriteWithExponentialBackoffParams<T, U> {
+  items: T[];
 }
 
 export const DEFAULT_QUERY_LIMIT = 50;
@@ -192,9 +213,10 @@ export function encodeQueryUntilLimitCursor(
   return `${skip || 0}|${lastKey || ''}`;
 }
 
-export function decodeQueryUntilLimitCursor(
-  cursor: string | undefined,
-): { skip: number; lastKey: string | undefined } {
+export function decodeQueryUntilLimitCursor(cursor: string | undefined): {
+  skip: number;
+  lastKey: string | undefined;
+} {
   if (!cursor) {
     return {
       skip: 0,
@@ -622,7 +644,7 @@ export default class DynamoDbDao<DataModel, KeySchema> {
               } as BatchPutOperation<DataModel>;
             } else {
               return {
-                delete: item.DeleteRequest.Key,
+                delete: item.DeleteRequest?.Key,
               } as BatchDeleteOperation<KeySchema>;
             }
           })
@@ -659,5 +681,93 @@ export default class DynamoDbDao<DataModel, KeySchema> {
         ? (unprocessedKeys.Keys as KeySchema[])
         : undefined,
     };
+  }
+
+  async batchPutWithExponentialBackoff(
+    params: BatchWriteWithExponentialBackoffParams<DataModel, KeySchema>,
+  ): Promise<void> {
+    const {
+      items,
+      delay = 100,
+      attempts = 0,
+      maxRetries = 5,
+      batchWriteLimit = MAX_BATCH_OPERATIONS,
+      logger,
+    } = params;
+
+    logger.info(
+      { attempts },
+      'Attempting to batch put with exponential backoff',
+    );
+
+    if (items.length === 0) {
+      logger.info({ items: items.length }, 'Nothing to batch put.');
+      return;
+    }
+
+    logger.info(
+      { items: items.length, delay, attempts, maxRetries },
+      'Attempting to batch put...',
+    );
+
+    const batches: DataModel[][] = chunk(items, batchWriteLimit);
+
+    logger.info({ batches: batches.length }, 'Number of total batches');
+    const unprocessedItems: BatchPutOperation<DataModel>[] = [];
+
+    await pMap(
+      batches,
+      async (batch) => {
+        const result = await this.batchWrite(
+          batch.map((batchItem) => ({
+            put: batchItem,
+          })),
+        );
+
+        if (result.unprocessedItems) {
+          unprocessedItems.push(
+            ...(result.unprocessedItems as BatchPutOperation<DataModel>[]),
+          );
+        }
+      },
+      { concurrency: 2 },
+    );
+
+    if (unprocessedItems.length && attempts > maxRetries) {
+      logger.error(
+        {
+          unprocessedItems: unprocessedItems.length,
+          attempts,
+          maxRetries,
+        },
+        'Found unprocessed items, but reached max attempts.',
+      );
+
+      throw new Error(
+        `Failed to process items after attempts (attempts=${attempts})`,
+      );
+    } else if (unprocessedItems.length) {
+      logger.warn(
+        {
+          unprocessedItems: unprocessedItems.length,
+          attempts,
+          maxRetries,
+          delay,
+        },
+        'Found unprocessed items. Retrying after dely...',
+      );
+
+      await sleep(delay);
+
+      await this.batchPutWithExponentialBackoff({
+        logger,
+        items: unprocessedItems.map((item) => item.put),
+        delay: Math.round(Math.pow(delay, 1.2)),
+        attempts: attempts + 1,
+        maxRetries,
+      });
+    }
+
+    logger.info('Successfully wrote all batches!');
   }
 }

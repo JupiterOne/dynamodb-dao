@@ -1,5 +1,5 @@
-import TestContext, { KeySchema, DataModel } from './helpers/TestContext';
 import { v4 as uuid } from 'uuid';
+import TestContext, { DataModel, KeySchema } from './helpers/TestContext';
 
 let context: TestContext;
 
@@ -30,7 +30,7 @@ test(`#incr should be supported`, async () => {
     {
       id: key.id,
     },
-    'version',
+    'version' as any,
   );
 
   const expected: DataModel = {
@@ -58,7 +58,7 @@ test(`#incr should support a custom number to increment by`, async () => {
     {
       id: key.id,
     },
-    'version',
+    'version' as any,
     5,
   );
 
@@ -86,7 +86,7 @@ test(`#incr should set 0 if the property does not exist`, async () => {
     {
       id: key.id,
     },
-    'version',
+    'version' as any,
   );
 
   const expected: DataModel = {
