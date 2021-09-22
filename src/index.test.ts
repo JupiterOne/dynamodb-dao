@@ -60,6 +60,26 @@ and return the result item`, async () => {
   expect(documentClient.get).toHaveBeenCalledWith({
     TableName: tableName,
     Key: key,
+    ConsistentRead: false,
+  });
+
+  expect(result).toEqual(testModelInstance);
+});
+
+test(`#get should pass the consistentRead option if supplied \
+and return the result item`, async () => {
+  const key = { id: uuid() };
+
+  jest.spyOn(documentClient, 'get').mockReturnValue({
+    promise: () => Promise.resolve({ Item: testModelInstance }),
+  } as any);
+
+  const result = await testDao.get(key, { consistentRead: true });
+
+  expect(documentClient.get).toHaveBeenCalledWith({
+    TableName: tableName,
+    Key: key,
+    ConsistentRead: true,
   });
 
   expect(result).toEqual(testModelInstance);
@@ -733,4 +753,31 @@ test('#batchWriteWithExponentialBackoff should respect the batchWriteLimit', asy
   expect(result).toBeUndefined();
   // should result in 3 batches of 1
   expect(batchWriteSpy).toHaveBeenCalledTimes(3);
+});
+
+test('#batchWriteWithExponentialBackoff should return if no items are supplied', async () => {
+  jest.setTimeout(15000);
+  const batchWriteSpy = jest
+    .spyOn(documentClient, 'batchWrite')
+    .mockReturnValue({
+      promise: () =>
+        Promise.resolve({
+          UnprocessedItems: {
+            [tableName]: [],
+          },
+        }),
+    } as any);
+
+  const result = await testDao.batchPutWithExponentialBackoff({
+    logger: mockLogger,
+    items: [],
+    batchWriteLimit: 1,
+  });
+
+  expect(result).toBeUndefined();
+  expect(batchWriteSpy).toHaveBeenCalledTimes(0);
+  expect(mockLogger.info).toHaveBeenCalledWith(
+    expect.anything(),
+    expect.stringMatching(/Nothing to batch put/)
+  );
 });

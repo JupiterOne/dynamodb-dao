@@ -1,5 +1,5 @@
-import TestContext, { documentClient } from './helpers/TestContext';
 import { v4 as uuid } from 'uuid';
+import TestContext, { documentClient } from './helpers/TestContext';
 
 let context: TestContext;
 
@@ -34,5 +34,20 @@ test('should be able to get an item from the table', async () => {
   // put data into dynamodb
   const item = await dao.get(key);
 
+  expect(item).toEqual(input);
+});
+
+test('should be able to do a consistent read on a get', async () => {
+  const { tableName, dao } = context;
+  const key = { id: uuid() };
+
+  const input = {
+    ...key,
+    test: uuid(),
+  };
+
+  await documentClient.put({ TableName: tableName, Item: input }).promise();
+
+  const item = await dao.get(key, { consistentRead: true });
   expect(item).toEqual(input);
 });
