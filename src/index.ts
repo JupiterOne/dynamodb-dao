@@ -69,6 +69,10 @@ export interface BatchPutParams<T, U> {
   logger: any;
 }
 
+interface GetItemOptions {
+  consistentRead?: boolean;
+}
+
 interface BaseBatchWriteWithExponentialBackoffParams<T, U> {
   logger: any;
   delay?: number;
@@ -266,11 +270,16 @@ export default class DynamoDbDao<DataModel, KeySchema> {
   /**
    * Fetches an item by it's key schema
    */
-  async get(key: KeySchema): Promise<DataModel | undefined> {
+  async get(
+    key: KeySchema,
+    options: GetItemOptions = { consistentRead: false }
+  ): Promise<DataModel | undefined> {
+    const { consistentRead } = options;
     const { Item: item } = await this.documentClient
       .get({
         TableName: this.tableName,
         Key: key,
+        ConsistentRead: consistentRead,
       })
       .promise();
 
