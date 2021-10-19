@@ -125,8 +125,12 @@ export interface SaveBehavior {
   optimisticLockVersionIncrement?: number;
 }
 
-export type PutOptions = ConditionalOptions & SaveBehavior;
-export type UpdateOptions = ConditionalOptions;
+export interface PublicSaveBehavior {
+  ignoreOptimisticLocking?: boolean;
+}
+
+export type PutOptions = ConditionalOptions;
+export type UpdateOptions = ConditionalOptions & PublicSaveBehavior;
 export type DeleteOptions = ConditionalOptions;
 
 export interface GenerateUpdateParamsInput extends UpdateOptions {
@@ -148,17 +152,30 @@ export function generateUpdateParams(
     tableName,
     key,
     data,
-    conditionExpression,
     attributeNames,
     attributeValues,
     optimisticLockVersionAttribute: versionAttribute,
     optimisticLockVersionIncrement: versionInc,
+    ignoreOptimisticLocking: ignoreLocking = false,
   } = options;
+
+  let conditionExpression = options.conditionExpression;
 
   if (versionAttribute) {
     addExpressions.push(`#${versionAttribute} :${versionAttribute}Inc`);
     expressionAttributeNameMap[`#${versionAttribute}`] = versionAttribute;
     expressionAttributeValueMap[`:${versionAttribute}Inc`] = versionInc ?? 1;
+
+    if (!ignoreLocking) {
+      const lockExpression = data[versionAttribute]
+        ? `#${versionAttribute} = :expected${versionAttribute}`
+        : `attribute_not_exists(${versionAttribute})`;
+      expressionAttributeValueMap[`:expected${versionAttribute}`] =
+        data[versionAttribute];
+      conditionExpression = conditionExpression
+        ? `(${conditionExpression}) AND ${lockExpression}`
+        : lockExpression;
+    }
   }
 
   const keys = Object.keys(options.data).sort();
