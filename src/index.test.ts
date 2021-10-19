@@ -579,7 +579,7 @@ test('#generateUpdateParams should increment the version number', () => {
       TableName: options.tableName,
       Key: options.key,
       ReturnValues: 'ALL_NEW',
-      ConditionExpression: '#lockVersion = :expectedlockVersion',
+      ConditionExpression: '#lockVersion = :lockVersion',
       UpdateExpression:
         'add #lockVersion :lockVersionInc set #a0 = :a0, #a1 = :a1 remove #a2',
       ExpressionAttributeNames: {
@@ -592,7 +592,7 @@ test('#generateUpdateParams should increment the version number', () => {
         ':a0': options.data.a,
         ':a1': options.data.b,
         ':lockVersionInc': 1,
-        ':expectedlockVersion': 1,
+        ':lockVersion': 1,
       },
     });
   }

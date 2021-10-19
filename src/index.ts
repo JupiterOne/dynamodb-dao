@@ -125,14 +125,32 @@ export interface SaveBehavior {
   optimisticLockVersionIncrement?: number;
 }
 
-export interface PublicSaveBehavior {
+export interface MutateBehavior {
   ignoreOptimisticLocking?: boolean;
 }
 
 export type PutOptions = ConditionalOptions;
-export type UpdateOptions = ConditionalOptions & PublicSaveBehavior;
-export type DeleteOptions = ConditionalOptions;
+export type UpdateOptions = ConditionalOptions & MutateBehavior;
+export type DeleteOptions = ConditionalOptions & MutateBehavior;
 
+export interface AppendOptimisticLockConditionInput {
+  versionAttribute: string;
+  versionAttributeValue: any;
+  conditionExpression: string;
+}
+
+export function appendOptimisticLockCondition({
+  versionAttribute,
+  versionAttributeValue,
+  conditionExpression,
+}: AppendOptimisticLockConditionInput) {
+  const lockExpression = versionAttributeValue
+    ? `#${versionAttribute} = :${versionAttribute}`
+    : `attribute_not_exists(${versionAttribute})`;
+  return conditionExpression
+    ? `(${conditionExpression}) AND ${lockExpression}`
+    : lockExpression;
+}
 export interface GenerateUpdateParamsInput extends UpdateOptions {
   tableName: string;
   key: any;
@@ -167,14 +185,13 @@ export function generateUpdateParams(
     expressionAttributeValueMap[`:${versionAttribute}Inc`] = versionInc ?? 1;
 
     if (!ignoreLocking) {
-      const lockExpression = data[versionAttribute]
-        ? `#${versionAttribute} = :expected${versionAttribute}`
-        : `attribute_not_exists(${versionAttribute})`;
-      expressionAttributeValueMap[`:expected${versionAttribute}`] =
+      conditionExpression = appendOptimisticLockCondition({
+        versionAttribute,
+        versionAttributeValue: data[versionAttribute],
+        conditionExpression,
+      });
+      expressionAttributeValueMap[`:${versionAttribute}`] =
         data[versionAttribute];
-      conditionExpression = conditionExpression
-        ? `(${conditionExpression}) AND ${lockExpression}`
-        : lockExpression;
     }
   }
 
@@ -333,16 +350,37 @@ export default class DynamoDbDao<DataModel, KeySchema> {
    */
   async delete(
     key: KeySchema,
-    options: DeleteOptions = {}
+    options: DeleteOptions = {},
+    data: Partial<DataModel> = {}
   ): Promise<DataModel | undefined> {
+    let { attributeNames, attributeValues, conditionExpression } = options;
+
+    if (this.optimisticLockingAttribute && !options.ignoreOptimisticLocking) {
+      const versionAttribute = this.optimisticLockingAttribute.toString();
+      conditionExpression = appendOptimisticLockCondition({
+        versionAttribute,
+        versionAttributeValue: data[versionAttribute],
+        conditionExpression: conditionExpression,
+      });
+      if (data[versionAttribute]) {
+        attributeNames = {
+          ...attributeNames,
+          [`#${versionAttribute}`]: versionAttribute,
+        };
+        attributeValues = {
+          ...attributeValues,
+          [`:${versionAttribute}`]: data[versionAttribute],
+        };
+      }
+    }
     const { Attributes: attributes } = await this.documentClient
       .delete({
         TableName: this.tableName,
         Key: key,
         ReturnValues: 'ALL_OLD',
-        ConditionExpression: options.conditionExpression,
-        ExpressionAttributeNames: options.attributeNames,
-        ExpressionAttributeValues: options.attributeValues,
+        ConditionExpression: conditionExpression,
+        ExpressionAttributeNames: attributeNames,
+        ExpressionAttributeValues: attributeValues,
       })
       .promise();
 
