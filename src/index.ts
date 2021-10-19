@@ -120,7 +120,12 @@ export interface ConditionalOptions {
   attributeValues?: AttributeValues;
 }
 
-export type PutOptions = ConditionalOptions;
+export interface SaveBehavior {
+  optimisticLockVersionAttribute?: string;
+  optimisticLockVersionIncrement?: number;
+}
+
+export type PutOptions = ConditionalOptions & SaveBehavior;
 export type UpdateOptions = ConditionalOptions;
 export type DeleteOptions = ConditionalOptions;
 
@@ -131,9 +136,10 @@ export interface GenerateUpdateParamsInput extends UpdateOptions {
 }
 
 export function generateUpdateParams(
-  options: GenerateUpdateParamsInput
+  options: GenerateUpdateParamsInput & SaveBehavior
 ): DocumentClient.UpdateItemInput {
   const setExpressions: string[] = [];
+  const addExpressions: string[] = [];
   const removeExpressions: string[] = [];
   const expressionAttributeNameMap: AttributeNames = {};
   const expressionAttributeValueMap: AttributeValues = {};
@@ -145,12 +151,25 @@ export function generateUpdateParams(
     conditionExpression,
     attributeNames,
     attributeValues,
+    optimisticLockVersionAttribute: versionAttribute,
+    optimisticLockVersionIncrement: versionInc,
   } = options;
+
+  if (versionAttribute) {
+    addExpressions.push(`#${versionAttribute} :${versionAttribute}Inc`);
+    expressionAttributeNameMap[`#${versionAttribute}`] = versionAttribute;
+    expressionAttributeValueMap[`:${versionAttribute}Inc`] = versionInc ?? 1;
+  }
 
   const keys = Object.keys(options.data).sort();
 
   for (let i = 0; i < keys.length; i++) {
     const name = keys[i];
+    if (name === versionAttribute) {
+      // versionAttribute is a special case and should always be handled
+      // explicitly as above with the supplied value ignored
+      continue;
+    }
 
     const valueName = `:a${i}`;
     const attributeName = `#a${i}`;
@@ -178,11 +197,13 @@ export function generateUpdateParams(
       ? 'remove ' + removeExpressions.join(', ')
       : undefined;
 
+  const addString =
+    addExpressions.length > 0 ? 'add ' + addExpressions.join(', ') : undefined;
   return {
     TableName: tableName,
     Key: key,
     ConditionExpression: conditionExpression,
-    UpdateExpression: [setString, removeString]
+    UpdateExpression: [addString, setString, removeString]
       .filter((val) => val !== undefined)
       .join(' '),
     ExpressionAttributeNames: {
@@ -197,9 +218,10 @@ export function generateUpdateParams(
   };
 }
 
-interface DynamoDbDaoInput {
+interface DynamoDbDaoInput<T> {
   tableName: string;
   documentClient: DocumentClient;
+  optimisticLockingAttribute?: keyof NumberPropertiesInType<T>;
 }
 
 function invalidCursorError(cursor: string): Error {
@@ -261,10 +283,12 @@ export type NumberPropertiesInType<T> = Pick<
 export default class DynamoDbDao<DataModel, KeySchema> {
   public readonly tableName: string;
   public readonly documentClient: DocumentClient;
+  public readonly optimisticLockingAttribute?: keyof NumberPropertiesInType<DataModel>;
 
-  constructor(options: DynamoDbDaoInput) {
+  constructor(options: DynamoDbDaoInput<DataModel>) {
     this.tableName = options.tableName;
     this.documentClient = options.documentClient;
+    this.optimisticLockingAttribute = options.optimisticLockingAttribute;
   }
 
   /**
@@ -337,6 +361,9 @@ export default class DynamoDbDao<DataModel, KeySchema> {
       key,
       data,
       ...updateOptions,
+      optimisticLockVersionAttribute: this.optimisticLockingAttribute
+        ? this.optimisticLockingAttribute.toString()
+        : undefined,
     });
     const { Attributes: attributes } = await this.documentClient
       .update(params)
