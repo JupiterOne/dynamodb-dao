@@ -88,7 +88,7 @@ test('should increment the version number by 1 on subsequent updates', async () 
 });
 
 test('should error if update does not supply the correct version number', async () => {
-  const { tableName, dao } = context;
+  const { dao } = context;
   const updateData = { test: uuid(), newField: uuid() };
   // sets the initial version to 1
   await dao.update(key, updateData);

@@ -39,7 +39,7 @@ test('should require version number to remove item from the table', async () => 
 });
 
 test('should error when version number is missing when removing item from the table', async () => {
-  const { tableName, dao } = context;
+  const { dao } = context;
 
   const key = { id: uuid() };
   const updateData = { test: uuid(), newField: uuid() };
@@ -54,7 +54,7 @@ test('should error when version number is missing when removing item from the ta
 });
 
 test('should error when version number is old when removing item from the table', async () => {
-  const { tableName, dao } = context;
+  const { dao } = context;
 
   const key = { id: uuid() };
   const updateData = { test: uuid(), newField: uuid() };
@@ -71,7 +71,7 @@ test('should error when version number is old when removing item from the table'
 });
 
 test('should not require version number to remove item from the table when ignore flag is set', async () => {
-  const { tableName, dao } = context;
+  const { dao } = context;
 
   const key = { id: uuid() };
   const updateData = { test: uuid(), newField: uuid() };
