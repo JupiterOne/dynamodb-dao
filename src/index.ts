@@ -129,7 +129,7 @@ export interface MutateBehavior {
   ignoreOptimisticLocking?: boolean;
 }
 
-export type PutOptions = ConditionalOptions;
+export type PutOptions = ConditionalOptions & MutateBehavior;
 export type UpdateOptions = ConditionalOptions & MutateBehavior;
 export type DeleteOptions = ConditionalOptions & MutateBehavior;
 
@@ -391,13 +391,40 @@ export default class DynamoDbDao<DataModel, KeySchema> {
    * Creates/Updates an item in the table
    */
   async put(data: DataModel, options: PutOptions = {}): Promise<DataModel> {
+    let { conditionExpression, attributeNames, attributeValues } = options;
+    if (this.optimisticLockingAttribute) {
+      const versionAttribute = this.optimisticLockingAttribute.toString();
+
+      if (!options.ignoreOptimisticLocking) {
+        conditionExpression = appendOptimisticLockCondition({
+          versionAttribute,
+          versionAttributeValue: data[versionAttribute],
+          conditionExpression,
+        });
+        if (data[versionAttribute]) {
+          attributeNames = {
+            ...attributeNames,
+            [`#${versionAttribute}`]: versionAttribute,
+          };
+          attributeValues = {
+            ...attributeValues,
+            [`:${versionAttribute}`]: data[versionAttribute],
+          };
+        }
+      }
+
+      data[versionAttribute] = data[versionAttribute]
+        ? data[versionAttribute] + 1
+        : 1;
+    }
+
     await this.documentClient
       .put({
         TableName: this.tableName,
         Item: data,
-        ConditionExpression: options.conditionExpression,
-        ExpressionAttributeNames: options.attributeNames,
-        ExpressionAttributeValues: options.attributeValues,
+        ConditionExpression: conditionExpression,
+        ExpressionAttributeNames: attributeNames,
+        ExpressionAttributeValues: attributeValues,
       })
       .promise();
     return data;
@@ -705,6 +732,7 @@ export default class DynamoDbDao<DataModel, KeySchema> {
       .batchWrite({
         RequestItems: {
           [this.tableName]: operations.map((operation) => {
+            // TODO: optionally add the opt lock here
             if (isBatchPutOperation(operation)) {
               return {
                 PutRequest: {
