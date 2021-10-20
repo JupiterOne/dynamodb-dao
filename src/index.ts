@@ -170,6 +170,8 @@ export function buildOptimisticLockOptions(
   };
 }
 
+type DataModelAsMap = { [key: string]: any };
+
 export interface GenerateUpdateParamsInput extends UpdateOptions {
   tableName: string;
   key: any;
@@ -206,11 +208,12 @@ export function generateUpdateParams(
     if (!ignoreLocking) {
       ({ conditionExpression } = buildOptimisticLockOptions({
         versionAttribute,
-        versionAttributeValue: data[versionAttribute],
+        versionAttributeValue: (data as DataModelAsMap)[versionAttribute],
         conditionExpression,
       }));
-      expressionAttributeValueMap[`:${versionAttribute}`] =
-        data[versionAttribute];
+      expressionAttributeValueMap[`:${versionAttribute}`] = (
+        data as DataModelAsMap
+      )[versionAttribute];
     }
   }
 
@@ -379,7 +382,7 @@ export default class DynamoDbDao<DataModel, KeySchema> {
       ({ attributeNames, attributeValues, conditionExpression } =
         buildOptimisticLockOptions({
           versionAttribute,
-          versionAttributeValue: data[versionAttribute],
+          versionAttributeValue: (data as DataModelAsMap)[versionAttribute],
           conditionExpression: conditionExpression,
           attributeNames,
           attributeValues,
@@ -405,21 +408,24 @@ export default class DynamoDbDao<DataModel, KeySchema> {
   async put(data: DataModel, options: PutOptions = {}): Promise<DataModel> {
     let { conditionExpression, attributeNames, attributeValues } = options;
     if (this.optimisticLockingAttribute) {
+      // Must cast data to avoid tripping the linter, otherwise, it'll complain
+      // about expression of type 'string' can't be used to index type 'unknown'
+      const dataAsMap = data as DataModelAsMap;
       const versionAttribute = this.optimisticLockingAttribute.toString();
 
       if (!options.ignoreOptimisticLocking) {
         ({ conditionExpression, attributeNames, attributeValues } =
           buildOptimisticLockOptions({
             versionAttribute,
-            versionAttributeValue: data[versionAttribute],
+            versionAttributeValue: dataAsMap[versionAttribute],
             conditionExpression,
             attributeNames,
             attributeValues,
           }));
       }
 
-      data[versionAttribute] = data[versionAttribute]
-        ? data[versionAttribute] + 1
+      dataAsMap[versionAttribute] = dataAsMap[versionAttribute]
+        ? dataAsMap[versionAttribute] + 1
         : 1;
     }
 
