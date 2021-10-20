@@ -133,24 +133,43 @@ export type PutOptions = ConditionalOptions & MutateBehavior;
 export type UpdateOptions = ConditionalOptions & MutateBehavior;
 export type DeleteOptions = ConditionalOptions & MutateBehavior;
 
-export interface AppendOptimisticLockConditionInput {
+export interface BuildOptimisticLockOptionsInput extends ConditionalOptions {
   versionAttribute: string;
   versionAttributeValue: any;
-  conditionExpression: string;
 }
 
-export function appendOptimisticLockCondition({
-  versionAttribute,
-  versionAttributeValue,
-  conditionExpression,
-}: AppendOptimisticLockConditionInput) {
+export function buildOptimisticLockOptions(
+  options: BuildOptimisticLockOptionsInput
+): ConditionalOptions {
+  const { versionAttribute, versionAttributeValue } = options;
+  let { conditionExpression, attributeNames, attributeValues } = options;
+
   const lockExpression = versionAttributeValue
     ? `#${versionAttribute} = :${versionAttribute}`
     : `attribute_not_exists(${versionAttribute})`;
-  return conditionExpression
+
+  conditionExpression = conditionExpression
     ? `(${conditionExpression}) AND ${lockExpression}`
     : lockExpression;
+
+  if (versionAttributeValue) {
+    attributeNames = {
+      ...attributeNames,
+      [`#${versionAttribute}`]: versionAttribute,
+    };
+    attributeValues = {
+      ...attributeValues,
+      [`:${versionAttribute}`]: versionAttributeValue,
+    };
+  }
+
+  return {
+    conditionExpression,
+    attributeNames,
+    attributeValues,
+  };
 }
+
 export interface GenerateUpdateParamsInput extends UpdateOptions {
   tableName: string;
   key: any;
@@ -185,11 +204,11 @@ export function generateUpdateParams(
     expressionAttributeValueMap[`:${versionAttribute}Inc`] = versionInc ?? 1;
 
     if (!ignoreLocking) {
-      conditionExpression = appendOptimisticLockCondition({
+      ({ conditionExpression } = buildOptimisticLockOptions({
         versionAttribute,
         versionAttributeValue: data[versionAttribute],
         conditionExpression,
-      });
+      }));
       expressionAttributeValueMap[`:${versionAttribute}`] =
         data[versionAttribute];
     }
@@ -357,21 +376,14 @@ export default class DynamoDbDao<DataModel, KeySchema> {
 
     if (this.optimisticLockingAttribute && !options.ignoreOptimisticLocking) {
       const versionAttribute = this.optimisticLockingAttribute.toString();
-      conditionExpression = appendOptimisticLockCondition({
-        versionAttribute,
-        versionAttributeValue: data[versionAttribute],
-        conditionExpression: conditionExpression,
-      });
-      if (data[versionAttribute]) {
-        attributeNames = {
-          ...attributeNames,
-          [`#${versionAttribute}`]: versionAttribute,
-        };
-        attributeValues = {
-          ...attributeValues,
-          [`:${versionAttribute}`]: data[versionAttribute],
-        };
-      }
+      ({ attributeNames, attributeValues, conditionExpression } =
+        buildOptimisticLockOptions({
+          versionAttribute,
+          versionAttributeValue: data[versionAttribute],
+          conditionExpression: conditionExpression,
+          attributeNames,
+          attributeValues,
+        }));
     }
     const { Attributes: attributes } = await this.documentClient
       .delete({
@@ -396,21 +408,14 @@ export default class DynamoDbDao<DataModel, KeySchema> {
       const versionAttribute = this.optimisticLockingAttribute.toString();
 
       if (!options.ignoreOptimisticLocking) {
-        conditionExpression = appendOptimisticLockCondition({
-          versionAttribute,
-          versionAttributeValue: data[versionAttribute],
-          conditionExpression,
-        });
-        if (data[versionAttribute]) {
-          attributeNames = {
-            ...attributeNames,
-            [`#${versionAttribute}`]: versionAttribute,
-          };
-          attributeValues = {
-            ...attributeValues,
-            [`:${versionAttribute}`]: data[versionAttribute],
-          };
-        }
+        ({ conditionExpression, attributeNames, attributeValues } =
+          buildOptimisticLockOptions({
+            versionAttribute,
+            versionAttributeValue: data[versionAttribute],
+            conditionExpression,
+            attributeNames,
+            attributeValues,
+          }));
       }
 
       data[versionAttribute] = data[versionAttribute]
