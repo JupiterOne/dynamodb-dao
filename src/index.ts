@@ -274,7 +274,7 @@ export function generateUpdateParams(
   };
 }
 
-interface DynamoDbDaoInput<T> {
+export interface DynamoDbDaoInput<T> {
   tableName: string;
   documentClient: DocumentClient;
   optimisticLockingAttribute?: keyof NumberPropertiesInType<T>;
@@ -454,9 +454,8 @@ export default class DynamoDbDao<DataModel, KeySchema> {
       key,
       data,
       ...updateOptions,
-      optimisticLockVersionAttribute: this.optimisticLockingAttribute
-        ? this.optimisticLockingAttribute.toString()
-        : undefined,
+      optimisticLockVersionAttribute:
+        this.optimisticLockingAttribute?.toString(),
     });
     const { Attributes: attributes } = await this.documentClient
       .update(params)
