@@ -742,7 +742,6 @@ export default class DynamoDbDao<DataModel, KeySchema> {
       .batchWrite({
         RequestItems: {
           [this.tableName]: operations.map((operation) => {
-            // TODO: optionally add the opt lock here
             if (isBatchPutOperation(operation)) {
               return {
                 PutRequest: {
