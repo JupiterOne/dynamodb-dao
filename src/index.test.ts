@@ -1,13 +1,14 @@
 import * as AWS from 'aws-sdk';
 import { v4 as uuid } from 'uuid';
-import DynamoDbDao, {
-  CountOutput,
-  decodeQueryUntilLimitCursor,
-  DEFAULT_QUERY_LIMIT,
-  encodeQueryUntilLimitCursor,
-  generateUpdateParams,
-} from '.';
+import DynamoDbDao from '.';
 import mockLogger from '../test/helpers/mockLogger';
+import { DEFAULT_QUERY_LIMIT } from './constants';
+import {
+  decodeQueryUntilLimitCursor,
+  encodeQueryUntilLimitCursor,
+} from './query/cursor';
+import { CountOutput } from './types';
+import { generateUpdateParams } from './update/generateUpdateParams';
 
 const dynamodb = new AWS.DynamoDB({
   apiVersion: '2012-08-10',

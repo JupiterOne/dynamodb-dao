@@ -1,6 +1,6 @@
-import TestContext, { documentClient } from './helpers/TestContext';
 import { v4 as uuid } from 'uuid';
-import { CountOutput } from '../src';
+import { CountOutput } from '../src/types';
+import TestContext, { documentClient } from './helpers/TestContext';
 
 let context: TestContext;
 const items: any[] = [];

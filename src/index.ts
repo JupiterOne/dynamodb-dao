@@ -2,127 +2,45 @@ import { sleep } from '@lifeomic/attempt';
 import { DocumentClient } from 'aws-sdk/clients/dynamodb';
 import chunk from 'lodash.chunk';
 import pMap from 'p-map';
+import { DEFAULT_QUERY_LIMIT, MAX_BATCH_OPERATIONS } from './constants';
+import { buildOptimisticLockOptions } from './locking/buildOptimisticLockOptions';
+import {
+  decodeQueryUntilLimitCursor,
+  encodeQueryUntilLimitCursor,
+} from './query/cursor';
+import {
+  decodeExclusiveStartKey,
+  encodeExclusiveStartKey,
+} from './scan/startKey';
+import { typeGuards } from './typeGuards';
+import {
+  AttributeNames,
+  AttributeValues,
+  BatchDeleteOperation,
+  BatchGetResult,
+  BatchPutOperation,
+  BatchWriteOperation,
+  BatchWriteResult,
+  BatchWriteWithExponentialBackoffParams,
+  CountOutput,
+  GetItemOptions,
+  QueryInputWithLimit,
+  QueryResult,
+  ScanInput,
+  Types,
+} from './types';
+import {
+  DataModelAsMap,
+  generateUpdateParams,
+} from './update/generateUpdateParams';
 
-type AttributeNames = Record<string, string>;
-type AttributeValues = Record<string, any>;
-
-interface BaseScanInput {
-  index?: string;
-  limit?: number;
-  startAt?: string;
-  filterExpression?: string;
-  attributeNames?: AttributeNames;
-  attributeValues?: AttributeValues;
-  consistentRead?: boolean;
-}
-
-export interface ScanInput extends BaseScanInput {
-  segment?: number;
-  totalSegments?: number;
-}
-
-export interface CountOutput {
-  count?: number;
-  scannedCount?: number;
-  lastKey?: string;
-}
-
-export interface QueryInput extends BaseScanInput {
-  scanIndexForward?: boolean;
-  keyConditionExpression: string;
-  attributeValues: AttributeValues;
-  consistentRead?: boolean;
-}
-
-export interface QueryInputWithLimit extends QueryInput {
-  limit: number;
-}
-
-export interface QueryResult<T> {
-  items: T[];
-  lastKey?: string;
-}
-
-export interface BatchPutOperation<DataModel> {
-  put: DataModel;
-}
-
-export interface BatchDeleteOperation<KeySchema> {
-  delete: KeySchema;
-}
-
-export type BatchWriteOperation<DataModel, KeySchema> =
-  | BatchPutOperation<DataModel>
-  | BatchDeleteOperation<KeySchema>;
-
-export interface BatchWriteResult<DataModel, KeySchema> {
-  unprocessedItems?: BatchWriteOperation<DataModel, KeySchema>[];
-}
-
-export interface BatchGetResult<DataModel, KeySchema> {
-  items: DataModel[];
-  unprocessedKeys?: KeySchema[];
-}
-
-export interface BatchPutParams<T, U> {
-  batch: T[];
-  logger: any;
-}
-
-interface GetItemOptions {
-  consistentRead?: boolean;
-}
-
-interface BaseBatchWriteWithExponentialBackoffParams<T, U> {
-  logger: any;
-  delay?: number;
-  attempts?: number;
-  maxRetries?: number;
-  batchWriteLimit?: number;
-}
-
-interface BatchWriteWithExponentialBackoffParams<T, U>
-  extends BaseBatchWriteWithExponentialBackoffParams<T, U> {
-  items: T[];
-}
-
-export const DEFAULT_QUERY_LIMIT = 50;
-export const MAX_BATCH_OPERATIONS = 25;
-
-/**
- * encode start key into a base64 encoded string
- * that can be used for pagination
- */
-export function encodeExclusiveStartKey<KeySchema>(obj: KeySchema): string {
-  return Buffer.from(JSON.stringify(obj)).toString('base64');
-}
-
-/**
- * Decode the key the start key
- */
-export function decodeExclusiveStartKey<KeySchema>(token: string): KeySchema {
-  try {
-    return JSON.parse(Buffer.from(token, 'base64').toString('utf8'));
-  } catch (err) {
-    throw new Error('Invalid pagination token provided');
-  }
-}
-
-export function isBatchPutOperation<DataModel, KeySchema>(
-  operation: BatchWriteOperation<DataModel, KeySchema>
-): operation is BatchPutOperation<DataModel> {
-  return (operation as any).put !== undefined;
-}
+export * from './constants';
+export * from './types';
 
 export interface ConditionalOptions {
   conditionExpression?: string;
   attributeNames?: AttributeNames;
   attributeValues?: AttributeValues;
-}
-
-export interface SaveBehavior {
-  optimisticLockVersionAttribute?: string;
-  optimisticLockVersionIncrement?: number;
 }
 
 export interface MutateBehavior {
@@ -133,191 +51,10 @@ export type PutOptions = ConditionalOptions & MutateBehavior;
 export type UpdateOptions = ConditionalOptions & MutateBehavior;
 export type DeleteOptions = ConditionalOptions & MutateBehavior;
 
-export interface BuildOptimisticLockOptionsInput extends ConditionalOptions {
-  versionAttribute: string;
-  versionAttributeValue: any;
-}
-
-export function buildOptimisticLockOptions(
-  options: BuildOptimisticLockOptionsInput
-): ConditionalOptions {
-  const { versionAttribute, versionAttributeValue } = options;
-  let { conditionExpression, attributeNames, attributeValues } = options;
-
-  const lockExpression = versionAttributeValue
-    ? `#${versionAttribute} = :${versionAttribute}`
-    : `attribute_not_exists(${versionAttribute})`;
-
-  conditionExpression = conditionExpression
-    ? `(${conditionExpression}) AND ${lockExpression}`
-    : lockExpression;
-
-  if (versionAttributeValue) {
-    attributeNames = {
-      ...attributeNames,
-      [`#${versionAttribute}`]: versionAttribute,
-    };
-    attributeValues = {
-      ...attributeValues,
-      [`:${versionAttribute}`]: versionAttributeValue,
-    };
-  }
-
-  return {
-    conditionExpression,
-    attributeNames,
-    attributeValues,
-  };
-}
-
-type DataModelAsMap = { [key: string]: any };
-
-export interface GenerateUpdateParamsInput extends UpdateOptions {
-  tableName: string;
-  key: any;
-  data: object;
-}
-
-export function generateUpdateParams(
-  options: GenerateUpdateParamsInput & SaveBehavior
-): DocumentClient.UpdateItemInput {
-  const setExpressions: string[] = [];
-  const addExpressions: string[] = [];
-  const removeExpressions: string[] = [];
-  const expressionAttributeNameMap: AttributeNames = {};
-  const expressionAttributeValueMap: AttributeValues = {};
-
-  const {
-    tableName,
-    key,
-    data,
-    attributeNames,
-    attributeValues,
-    optimisticLockVersionAttribute: versionAttribute,
-    optimisticLockVersionIncrement: versionInc,
-    ignoreOptimisticLocking: ignoreLocking = false,
-  } = options;
-
-  let conditionExpression = options.conditionExpression;
-
-  if (versionAttribute) {
-    addExpressions.push(`#${versionAttribute} :${versionAttribute}Inc`);
-    expressionAttributeNameMap[`#${versionAttribute}`] = versionAttribute;
-    expressionAttributeValueMap[`:${versionAttribute}Inc`] = versionInc ?? 1;
-
-    if (!ignoreLocking) {
-      ({ conditionExpression } = buildOptimisticLockOptions({
-        versionAttribute,
-        versionAttributeValue: (data as DataModelAsMap)[versionAttribute],
-        conditionExpression,
-      }));
-      expressionAttributeValueMap[`:${versionAttribute}`] = (
-        data as DataModelAsMap
-      )[versionAttribute];
-    }
-  }
-
-  const keys = Object.keys(options.data).sort();
-
-  for (let i = 0; i < keys.length; i++) {
-    const name = keys[i];
-    if (name === versionAttribute) {
-      // versionAttribute is a special case and should always be handled
-      // explicitly as above with the supplied value ignored
-      continue;
-    }
-
-    const valueName = `:a${i}`;
-    const attributeName = `#a${i}`;
-
-    const value = (data as any)[name];
-    expressionAttributeNameMap[attributeName] = name;
-
-    if (value === undefined) {
-      removeExpressions.push(attributeName);
-    } else {
-      expressionAttributeValueMap[valueName] = value;
-      setExpressions.push(`${attributeName} = ${valueName}`);
-    }
-  }
-  const expressionAttributeValues = {
-    ...expressionAttributeValueMap,
-    ...attributeValues,
-  };
-
-  const setString =
-    setExpressions.length > 0 ? 'set ' + setExpressions.join(', ') : undefined;
-
-  const removeString =
-    removeExpressions.length > 0
-      ? 'remove ' + removeExpressions.join(', ')
-      : undefined;
-
-  const addString =
-    addExpressions.length > 0 ? 'add ' + addExpressions.join(', ') : undefined;
-  return {
-    TableName: tableName,
-    Key: key,
-    ConditionExpression: conditionExpression,
-    UpdateExpression: [addString, setString, removeString]
-      .filter((val) => val !== undefined)
-      .join(' '),
-    ExpressionAttributeNames: {
-      ...expressionAttributeNameMap,
-      ...attributeNames,
-    },
-    ExpressionAttributeValues:
-      Object.keys(expressionAttributeValues).length > 0
-        ? expressionAttributeValues
-        : undefined,
-    ReturnValues: 'ALL_NEW',
-  };
-}
-
 export interface DynamoDbDaoInput<T> {
   tableName: string;
   documentClient: DocumentClient;
   optimisticLockingAttribute?: keyof NumberPropertiesInType<T>;
-}
-
-function invalidCursorError(cursor: string): Error {
-  const err = new Error(
-    `Invalid cursor for queryUntilLimitReached(...) function (cursor=${cursor})`
-  );
-  (err as any).retryable = false;
-  return err;
-}
-
-export function encodeQueryUntilLimitCursor(
-  lastKey: string | undefined,
-  skip: number | undefined
-): string {
-  return `${skip || 0}|${lastKey || ''}`;
-}
-
-export function decodeQueryUntilLimitCursor(cursor: string | undefined): {
-  skip: number;
-  lastKey: string | undefined;
-} {
-  if (!cursor) {
-    return {
-      skip: 0,
-      lastKey: undefined,
-    };
-  }
-
-  const pos = cursor.indexOf('|');
-  if (pos === -1) {
-    throw invalidCursorError(cursor);
-  }
-
-  const skip = parseInt(cursor.substring(0, pos), 10);
-  if (Number.isNaN(skip)) {
-    throw invalidCursorError(cursor);
-  }
-
-  const lastKey = cursor.substring(pos + 1);
-  return { skip, lastKey };
 }
 
 /**
@@ -517,7 +254,7 @@ export default class DynamoDbDao<DataModel, KeySchema> {
   /**
    * Executes a query to fetch a count
    */
-  async count(input: QueryInput): Promise<CountOutput> {
+  async count(input: Types): Promise<CountOutput> {
     const {
       index,
       attributeValues,
@@ -562,7 +299,7 @@ export default class DynamoDbDao<DataModel, KeySchema> {
   /**
    * Executes a query on the table
    */
-  async query(input: QueryInput): Promise<QueryResult<DataModel>> {
+  async query(input: Types): Promise<QueryResult<DataModel>> {
     const {
       index,
       startAt,
@@ -743,7 +480,7 @@ export default class DynamoDbDao<DataModel, KeySchema> {
         RequestItems: {
           [this.tableName]: operations.map((operation) => {
             // TODO: optionally add the opt lock here
-            if (isBatchPutOperation(operation)) {
+            if (typeGuards(operation)) {
               return {
                 PutRequest: {
                   Item: operation.put,
