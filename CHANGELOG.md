@@ -13,3 +13,9 @@ and this project adheres to
 ### Added
 
 - Support `consistentRead` option on `get` API
+
+## 1.5.0 - 2021-10-27
+
+### Added
+
+- Support optimistic locking for `put`, `update` and `delete` APIs

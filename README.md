@@ -151,8 +151,19 @@ available toggles:
    provide the current version number. If an out-of-date version number is
    supplied, an error will be thrown.
 
+   Example of Dao constructed with optimistic locking enabled.
+
+   ```
+   const dao = new DynamoDbDao<DataModel, KeySchema>({
+     tableName,
+     documentClient,
+     optimisticLockingAttribute: 'version',
+   });
+   ```
+
 2. If you wish to ignore optimistic locking for a save operation, specify
-   `ignoreOptimisticLocking: true` on your `put`, `update`, or `delete`.
+   `ignoreOptimisticLocking: true` in the options on your `put`, `update`, or
+   `delete`.
 
 NOTE: Optimistic locking is NOT supported for `batchWrite` or `batchPut`
 operations. Consuming those APIs for data models that do have optimistic locking
