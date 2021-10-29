@@ -120,9 +120,57 @@ export interface ConditionalOptions {
   attributeValues?: AttributeValues;
 }
 
-export type PutOptions = ConditionalOptions;
-export type UpdateOptions = ConditionalOptions;
-export type DeleteOptions = ConditionalOptions;
+export interface SaveBehavior {
+  optimisticLockVersionAttribute?: string;
+  optimisticLockVersionIncrement?: number;
+}
+
+export interface MutateBehavior {
+  ignoreOptimisticLocking?: boolean;
+}
+
+export type PutOptions = ConditionalOptions & MutateBehavior;
+export type UpdateOptions = ConditionalOptions & MutateBehavior;
+export type DeleteOptions = ConditionalOptions & MutateBehavior;
+
+export interface BuildOptimisticLockOptionsInput extends ConditionalOptions {
+  versionAttribute: string;
+  versionAttributeValue: any;
+}
+
+export function buildOptimisticLockOptions(
+  options: BuildOptimisticLockOptionsInput
+): ConditionalOptions {
+  const { versionAttribute, versionAttributeValue } = options;
+  let { conditionExpression, attributeNames, attributeValues } = options;
+
+  const lockExpression = versionAttributeValue
+    ? `#${versionAttribute} = :${versionAttribute}`
+    : `attribute_not_exists(${versionAttribute})`;
+
+  conditionExpression = conditionExpression
+    ? `(${conditionExpression}) AND ${lockExpression}`
+    : lockExpression;
+
+  if (versionAttributeValue) {
+    attributeNames = {
+      ...attributeNames,
+      [`#${versionAttribute}`]: versionAttribute,
+    };
+    attributeValues = {
+      ...attributeValues,
+      [`:${versionAttribute}`]: versionAttributeValue,
+    };
+  }
+
+  return {
+    conditionExpression,
+    attributeNames,
+    attributeValues,
+  };
+}
+
+type DataModelAsMap = { [key: string]: any };
 
 export interface GenerateUpdateParamsInput extends UpdateOptions {
   tableName: string;
@@ -131,9 +179,10 @@ export interface GenerateUpdateParamsInput extends UpdateOptions {
 }
 
 export function generateUpdateParams(
-  options: GenerateUpdateParamsInput
+  options: GenerateUpdateParamsInput & SaveBehavior
 ): DocumentClient.UpdateItemInput {
   const setExpressions: string[] = [];
+  const addExpressions: string[] = [];
   const removeExpressions: string[] = [];
   const expressionAttributeNameMap: AttributeNames = {};
   const expressionAttributeValueMap: AttributeValues = {};
@@ -142,15 +191,41 @@ export function generateUpdateParams(
     tableName,
     key,
     data,
-    conditionExpression,
     attributeNames,
     attributeValues,
+    optimisticLockVersionAttribute: versionAttribute,
+    optimisticLockVersionIncrement: versionInc,
+    ignoreOptimisticLocking: ignoreLocking = false,
   } = options;
+
+  let conditionExpression = options.conditionExpression;
+
+  if (versionAttribute) {
+    addExpressions.push(`#${versionAttribute} :${versionAttribute}Inc`);
+    expressionAttributeNameMap[`#${versionAttribute}`] = versionAttribute;
+    expressionAttributeValueMap[`:${versionAttribute}Inc`] = versionInc ?? 1;
+
+    if (!ignoreLocking) {
+      ({ conditionExpression } = buildOptimisticLockOptions({
+        versionAttribute,
+        versionAttributeValue: (data as DataModelAsMap)[versionAttribute],
+        conditionExpression,
+      }));
+      expressionAttributeValueMap[`:${versionAttribute}`] = (
+        data as DataModelAsMap
+      )[versionAttribute];
+    }
+  }
 
   const keys = Object.keys(options.data).sort();
 
   for (let i = 0; i < keys.length; i++) {
     const name = keys[i];
+    if (name === versionAttribute) {
+      // versionAttribute is a special case and should always be handled
+      // explicitly as above with the supplied value ignored
+      continue;
+    }
 
     const valueName = `:a${i}`;
     const attributeName = `#a${i}`;
@@ -178,11 +253,13 @@ export function generateUpdateParams(
       ? 'remove ' + removeExpressions.join(', ')
       : undefined;
 
+  const addString =
+    addExpressions.length > 0 ? 'add ' + addExpressions.join(', ') : undefined;
   return {
     TableName: tableName,
     Key: key,
     ConditionExpression: conditionExpression,
-    UpdateExpression: [setString, removeString]
+    UpdateExpression: [addString, setString, removeString]
       .filter((val) => val !== undefined)
       .join(' '),
     ExpressionAttributeNames: {
@@ -197,9 +274,10 @@ export function generateUpdateParams(
   };
 }
 
-interface DynamoDbDaoInput {
+export interface DynamoDbDaoInput<T> {
   tableName: string;
   documentClient: DocumentClient;
+  optimisticLockingAttribute?: keyof NumberPropertiesInType<T>;
 }
 
 function invalidCursorError(cursor: string): Error {
@@ -261,10 +339,12 @@ export type NumberPropertiesInType<T> = Pick<
 export default class DynamoDbDao<DataModel, KeySchema> {
   public readonly tableName: string;
   public readonly documentClient: DocumentClient;
+  public readonly optimisticLockingAttribute?: keyof NumberPropertiesInType<DataModel>;
 
-  constructor(options: DynamoDbDaoInput) {
+  constructor(options: DynamoDbDaoInput<DataModel>) {
     this.tableName = options.tableName;
     this.documentClient = options.documentClient;
+    this.optimisticLockingAttribute = options.optimisticLockingAttribute;
   }
 
   /**
@@ -292,16 +372,30 @@ export default class DynamoDbDao<DataModel, KeySchema> {
    */
   async delete(
     key: KeySchema,
-    options: DeleteOptions = {}
+    options: DeleteOptions = {},
+    data: Partial<DataModel> = {}
   ): Promise<DataModel | undefined> {
+    let { attributeNames, attributeValues, conditionExpression } = options;
+
+    if (this.optimisticLockingAttribute && !options.ignoreOptimisticLocking) {
+      const versionAttribute = this.optimisticLockingAttribute.toString();
+      ({ attributeNames, attributeValues, conditionExpression } =
+        buildOptimisticLockOptions({
+          versionAttribute,
+          versionAttributeValue: (data as DataModelAsMap)[versionAttribute],
+          conditionExpression: conditionExpression,
+          attributeNames,
+          attributeValues,
+        }));
+    }
     const { Attributes: attributes } = await this.documentClient
       .delete({
         TableName: this.tableName,
         Key: key,
         ReturnValues: 'ALL_OLD',
-        ConditionExpression: options.conditionExpression,
-        ExpressionAttributeNames: options.attributeNames,
-        ExpressionAttributeValues: options.attributeValues,
+        ConditionExpression: conditionExpression,
+        ExpressionAttributeNames: attributeNames,
+        ExpressionAttributeValues: attributeValues,
       })
       .promise();
 
@@ -312,13 +406,36 @@ export default class DynamoDbDao<DataModel, KeySchema> {
    * Creates/Updates an item in the table
    */
   async put(data: DataModel, options: PutOptions = {}): Promise<DataModel> {
+    let { conditionExpression, attributeNames, attributeValues } = options;
+    if (this.optimisticLockingAttribute) {
+      // Must cast data to avoid tripping the linter, otherwise, it'll complain
+      // about expression of type 'string' can't be used to index type 'unknown'
+      const dataAsMap = data as DataModelAsMap;
+      const versionAttribute = this.optimisticLockingAttribute.toString();
+
+      if (!options.ignoreOptimisticLocking) {
+        ({ conditionExpression, attributeNames, attributeValues } =
+          buildOptimisticLockOptions({
+            versionAttribute,
+            versionAttributeValue: dataAsMap[versionAttribute],
+            conditionExpression,
+            attributeNames,
+            attributeValues,
+          }));
+      }
+
+      dataAsMap[versionAttribute] = dataAsMap[versionAttribute]
+        ? dataAsMap[versionAttribute] + 1
+        : 1;
+    }
+
     await this.documentClient
       .put({
         TableName: this.tableName,
         Item: data,
-        ConditionExpression: options.conditionExpression,
-        ExpressionAttributeNames: options.attributeNames,
-        ExpressionAttributeValues: options.attributeValues,
+        ConditionExpression: conditionExpression,
+        ExpressionAttributeNames: attributeNames,
+        ExpressionAttributeValues: attributeValues,
       })
       .promise();
     return data;
@@ -337,6 +454,8 @@ export default class DynamoDbDao<DataModel, KeySchema> {
       key,
       data,
       ...updateOptions,
+      optimisticLockVersionAttribute:
+        this.optimisticLockingAttribute?.toString(),
     });
     const { Attributes: attributes } = await this.documentClient
       .update(params)

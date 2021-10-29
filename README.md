@@ -137,6 +137,43 @@ const { total } = await myDocumentDao.decr(
 );
 ```
 
+**Optimistic Locking with Version Numbers**
+
+For callers who wish to enable an optimistic locking strategy there are two
+available toggles:
+
+1. Provide the attribute you wish to be used to store the version number. This
+   will enable optimistic locking on the following operations: `put`, `update`,
+   and `delete`.
+
+   Writes for documents that do not have a version number attribute will
+   initialize the version number to 1. All subsequent writes will need to
+   provide the current version number. If an out-of-date version number is
+   supplied, an error will be thrown.
+
+   Example of Dao constructed with optimistic locking enabled.
+
+   ```
+   const dao = new DynamoDbDao<DataModel, KeySchema>({
+     tableName,
+     documentClient,
+     optimisticLockingAttribute: 'version',
+   });
+   ```
+
+2. If you wish to ignore optimistic locking for a save operation, specify
+   `ignoreOptimisticLocking: true` in the options on your `put`, `update`, or
+   `delete`.
+
+NOTE: Optimistic locking is NOT supported for `batchWrite` or `batchPut`
+operations. Consuming those APIs for data models that do have optimistic locking
+enabled may clobber your version data and could produce undesirable effects for
+other callers.
+
+This was modeled after the
+[Java Dynamo client](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/DynamoDBMapper.OptimisticLocking.html)
+implementation.
+
 ## Developing
 
 The test setup requires that [docker-compose]() be installed. To run the tests,

@@ -2,7 +2,7 @@
 
 import { DynamoDB } from 'aws-sdk';
 import { v4 as uuid } from 'uuid';
-import DynamoDbDao from '../../src';
+import DynamoDbDao, { DynamoDbDaoInput } from '../../src';
 
 const { DYNAMODB_ENDPOINT = 'http://localhost:8000' } = process.env;
 
@@ -43,7 +43,9 @@ export default class TestContext {
     this.dao = dao;
   }
 
-  static async setup(): Promise<TestContext> {
+  static async setup(
+    useOptimisticLocking: boolean = false
+  ): Promise<TestContext> {
     const tableName = uuid();
     const indexName = uuid();
 
@@ -98,7 +100,8 @@ export default class TestContext {
     const dao = new DynamoDbDao<DataModel, KeySchema>({
       tableName,
       documentClient,
-    });
+      optimisticLockingAttribute: useOptimisticLocking ? 'version' : undefined,
+    } as DynamoDbDaoInput<DataModel>);
 
     return new TestContext(tableName, indexName, dao);
   }

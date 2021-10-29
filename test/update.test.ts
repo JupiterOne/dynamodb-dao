@@ -1,7 +1,6 @@
-import TestContext, { documentClient } from './helpers/TestContext';
 import { v4 as uuid } from 'uuid';
-
 import reservedWords from './fixtures/reservedWords';
+import TestContext, { documentClient } from './helpers/TestContext';
 
 let context: TestContext;
 

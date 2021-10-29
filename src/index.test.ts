@@ -559,6 +559,82 @@ test('#generateUpdateParams should generate both update and remove params for do
   }
 });
 
+test('#generateUpdateParams should increment the version number', () => {
+  {
+    const options = {
+      tableName: 'blah2',
+      key: {
+        HashKey: 'abc',
+      },
+      data: {
+        a: 123,
+        b: 'abc',
+        c: undefined,
+        lockVersion: 1,
+      },
+      optimisticLockVersionAttribute: 'lockVersion',
+    };
+
+    expect(generateUpdateParams(options)).toEqual({
+      TableName: options.tableName,
+      Key: options.key,
+      ReturnValues: 'ALL_NEW',
+      ConditionExpression: '#lockVersion = :lockVersion',
+      UpdateExpression:
+        'add #lockVersion :lockVersionInc set #a0 = :a0, #a1 = :a1 remove #a2',
+      ExpressionAttributeNames: {
+        '#a0': 'a',
+        '#a1': 'b',
+        '#a2': 'c',
+        '#lockVersion': 'lockVersion',
+      },
+      ExpressionAttributeValues: {
+        ':a0': options.data.a,
+        ':a1': options.data.b,
+        ':lockVersionInc': 1,
+        ':lockVersion': 1,
+      },
+    });
+  }
+});
+
+test('#generateUpdateParams should increment the version number even when not supplied', () => {
+  {
+    const options = {
+      tableName: 'blah3',
+      key: {
+        HashKey: 'abc',
+      },
+      data: {
+        a: 123,
+        b: 'abc',
+        c: undefined,
+      },
+      optimisticLockVersionAttribute: 'lockVersion',
+    };
+
+    expect(generateUpdateParams(options)).toEqual({
+      TableName: options.tableName,
+      Key: options.key,
+      ReturnValues: 'ALL_NEW',
+      UpdateExpression:
+        'add #lockVersion :lockVersionInc set #a0 = :a0, #a1 = :a1 remove #a2',
+      ConditionExpression: 'attribute_not_exists(lockVersion)',
+      ExpressionAttributeNames: {
+        '#a0': 'a',
+        '#a1': 'b',
+        '#a2': 'c',
+        '#lockVersion': 'lockVersion',
+      },
+      ExpressionAttributeValues: {
+        ':a0': options.data.a,
+        ':a1': options.data.b,
+        ':lockVersionInc': 1,
+      },
+    });
+  }
+});
+
 test(`#queryUntilLimitReached should call #query if "filterExpression" not provided`, async () => {
   const keyConditionExpression = 'id = :id';
   const attributeValues = { id: uuid() };
