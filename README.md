@@ -213,8 +213,7 @@ locally.
 Then, push your branch and new tag to the remote.
 
 ```
-git push
-git push origin vX.X.X # use your new version #
+git push && git push --tags
 ```
 
 Create a pull request with the branch. Once that is merged, your new version
