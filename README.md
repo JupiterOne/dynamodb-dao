@@ -195,3 +195,26 @@ To stop containers:
 ```
 yarn stop:containers
 ```
+
+## Releasing
+
+Once you are ready to publish a new version, make sure all of your changes have
+been pushed and merged to the remote repository.
+
+Next, create a new branch and run the following command:
+
+```
+yarn version --minor (or --major or --patch)
+```
+
+This will add a commit with an updated `package.json`, and create a new tag
+locally.
+
+Then, push your branch and new tag to the remote.
+
+```
+git push && git push --tags
+```
+
+Create a pull request with the branch. Once that is merged, your new version
+will be published.
