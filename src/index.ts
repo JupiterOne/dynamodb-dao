@@ -12,7 +12,7 @@ import {
   decodeExclusiveStartKey,
   encodeExclusiveStartKey,
 } from './scan/startKey';
-import { typeGuards } from './typeGuards';
+import { isBatchPutOperation } from './typeGuards';
 import {
   AttributeNames,
   AttributeValues,
@@ -479,8 +479,7 @@ export default class DynamoDbDao<DataModel, KeySchema> {
       .batchWrite({
         RequestItems: {
           [this.tableName]: operations.map((operation) => {
-            // TODO: optionally add the opt lock here
-            if (typeGuards(operation)) {
+            if (isBatchPutOperation(operation)) {
               return {
                 PutRequest: {
                   Item: operation.put,
