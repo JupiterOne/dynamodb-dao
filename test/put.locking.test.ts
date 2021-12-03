@@ -42,7 +42,7 @@ describe('with auto-initiated version lock', () => {
   });
 
   test('should throw error if version number is not supplied on second update', async () => {
-    const { tableName, dao } = context;
+    const { dao } = context;
 
     const key = { id: uuid() };
 

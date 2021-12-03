@@ -58,7 +58,7 @@ export type DeleteOptions = ConditionalOptions & MutateBehavior;
 export interface DynamoDbDaoInput<T> {
   tableName: string;
   documentClient: DocumentClient;
-  behavior: DynamoDbDaoBehavior<T>;
+  behavior?: DynamoDbDaoBehavior<T>;
 }
 
 export type DynamoDbDaoBehavior<T> = {
@@ -127,11 +127,11 @@ export default class DynamoDbDao<DataModel, KeySchema> {
     let { attributeNames, attributeValues, conditionExpression } = options;
 
     if (
-      this.behavior.optimisticLockingAttribute &&
+      this.behavior?.optimisticLockingAttribute &&
       !options.ignoreOptimisticLocking
     ) {
       const versionAttribute =
-        this.behavior.optimisticLockingAttribute.toString();
+        this.behavior?.optimisticLockingAttribute.toString();
       ({ attributeNames, attributeValues, conditionExpression } =
         buildOptimisticLockOptions({
           versionAttribute,
@@ -160,12 +160,12 @@ export default class DynamoDbDao<DataModel, KeySchema> {
    */
   async put(data: DataModel, options: PutOptions = {}): Promise<DataModel> {
     let { conditionExpression, attributeNames, attributeValues } = options;
-    if (this.behavior.optimisticLockingAttribute) {
+    if (this.behavior?.optimisticLockingAttribute) {
       // Must cast data to avoid tripping the linter, otherwise, it'll complain
       // about expression of type 'string' can't be used to index type 'unknown'
       const dataAsMap = data as DataModelAsMap;
       const versionAttribute =
-        this.behavior.optimisticLockingAttribute.toString();
+        this.behavior?.optimisticLockingAttribute.toString();
 
       if (!options.ignoreOptimisticLocking) {
         ({ conditionExpression, attributeNames, attributeValues } =
@@ -182,7 +182,7 @@ export default class DynamoDbDao<DataModel, KeySchema> {
       // set the default if directed to do so
       if (versionAttribute in data) {
         dataAsMap[versionAttribute] += DEFAULT_LOCK_INCREMENT;
-      } else if (this.behavior.autoInitiateLockingAttribute) {
+      } else if (this.behavior?.autoInitiateLockingAttribute) {
         dataAsMap[versionAttribute] = DEFAULT_LOCK_INCREMENT;
       }
     }
@@ -215,7 +215,7 @@ export default class DynamoDbDao<DataModel, KeySchema> {
       data,
       ...updateOptions,
       optimisticLockVersionAttribute,
-      autoInitiateLockingAttribute: this.behavior.autoInitiateLockingAttribute,
+      autoInitiateLockingAttribute: this.behavior?.autoInitiateLockingAttribute,
     });
 
     const { Attributes: attributes } = await this.documentClient
