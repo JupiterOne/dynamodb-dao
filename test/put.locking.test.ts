@@ -9,155 +9,130 @@ afterAll(() => {
   }
 });
 
-describe('with auto-initiated version lock', () => {
-  beforeAll(async () => {
-    context = await TestContext.setup(true, true);
-  });
-
-  test('should add version number on first put', async () => {
-    const { tableName, dao } = context;
-
-    const key = { id: uuid() };
-
-    const input = {
-      ...key,
-      test: uuid(),
-    };
-
-    // put data into dynamodb
-    await dao.put(input);
-
-    // ensure it exists
-    const { Item: item } = await documentClient
-      .get({
-        TableName: tableName,
-        Key: key,
-      })
-      .promise();
-
-    expect(item).toEqual({
-      ...input,
-      version: 1,
+describe.each([true, false])(
+  'put with locking and auto-initiate %s',
+  (autoInitiateLockingAttribute) => {
+    beforeAll(async () => {
+      context = await TestContext.setup(true, autoInitiateLockingAttribute);
     });
-  });
 
-  test('should throw error if version number is not supplied on second update', async () => {
-    const { dao } = context;
+    test('should add version number on first put', async () => {
+      const { tableName, dao } = context;
 
-    const key = { id: uuid() };
+      const key = { id: uuid() };
 
-    const input = {
-      ...key,
-      test: uuid(),
-      version: 0,
-    };
-
-    // put data into dynamodb
-    await dao.put(input);
-
-    await expect(async () => {
-      await dao.put({
+      const input = {
         ...key,
         test: uuid(),
+      };
+
+      // put data into dynamodb
+      await dao.put(input);
+
+      // ensure it exists
+      const { Item: item } = await documentClient
+        .get({
+          TableName: tableName,
+          Key: key,
+        })
+        .promise();
+
+      expect(item).toEqual({
+        ...input,
+        version: autoInitiateLockingAttribute ? 1 : undefined,
       });
-    }).rejects.toThrow('The conditional request failed');
-  });
-
-  test('should allow multiple puts if version number is incremented', async () => {
-    const { tableName, dao } = context;
-
-    const key = { id: uuid() };
-
-    const input = {
-      ...key,
-      test: uuid(),
-      version: 0,
-    };
-
-    // put data into dynamodb
-    await dao.put(input);
-    await dao.put({
-      ...input,
-      version: 1,
     });
 
-    const { Item: item } = await documentClient
-      .get({
-        TableName: tableName,
-        Key: key,
-      })
-      .promise();
+    test('should throw error if version number is not supplied on second update', async () => {
+      const { dao } = context;
 
-    expect(item).toEqual({
-      ...input,
-      version: 2,
+      const key = { id: uuid() };
+
+      const input = {
+        ...key,
+        test: uuid(),
+        version: 0,
+      };
+
+      // put data into dynamodb
+      await dao.put(input);
+
+      await expect(async () => {
+        await dao.put({
+          ...key,
+          test: uuid(),
+        });
+      }).rejects.toThrow('The conditional request failed');
     });
-  });
 
-  test('should allow multiple puts if version number is incremented when multiple conditions exist', async () => {
-    const { tableName, dao } = context;
+    test('should allow multiple puts if version number is incremented', async () => {
+      const { tableName, dao } = context;
 
-    const key = { id: uuid() };
+      const key = { id: uuid() };
 
-    const input = {
-      ...key,
-      test: uuid(),
-      version: 0,
-    };
+      const input = {
+        ...key,
+        test: uuid(),
+        version: 0,
+      };
 
-    // put data into dynamodb
-    await dao.put(input);
-    await dao.put(
-      {
+      // put data into dynamodb
+      await dao.put(input);
+      await dao.put({
         ...input,
         version: 1,
-      },
-      {
-        attributeNames: { '#test': 'test' },
-        attributeValues: { ':test': input.test, ':test2': '2' },
-        conditionExpression: '#test = :test or #test = :test2',
-      }
-    );
+      });
 
-    // ensure it exists
-    const { Item: item } = await documentClient
-      .get({
-        TableName: tableName,
-        Key: key,
-      })
-      .promise();
+      const { Item: item } = await documentClient
+        .get({
+          TableName: tableName,
+          Key: key,
+        })
+        .promise();
 
-    expect(item).toEqual({
-      ...input,
-      version: 2,
+      expect(item).toEqual({
+        ...input,
+        version: 2,
+      });
     });
-  });
-});
 
-describe('without auto-initiated version lock', () => {
-  test('should add version number on first put', async () => {
-    const { tableName, dao } = context;
+    test('should allow multiple puts if version number is incremented when multiple conditions exist', async () => {
+      const { tableName, dao } = context;
 
-    const key = { id: uuid() };
+      const key = { id: uuid() };
 
-    const input = {
-      ...key,
-      test: uuid(),
-    };
+      const input = {
+        ...key,
+        test: uuid(),
+        version: 0,
+      };
 
-    // put data into dynamodb
-    await dao.put(input);
+      // put data into dynamodb
+      await dao.put(input);
+      await dao.put(
+        {
+          ...input,
+          version: 1,
+        },
+        {
+          attributeNames: { '#test': 'test' },
+          attributeValues: { ':test': input.test, ':test2': '2' },
+          conditionExpression: '#test = :test or #test = :test2',
+        }
+      );
 
-    // ensure it exists
-    const { Item: item } = await documentClient
-      .get({
-        TableName: tableName,
-        Key: key,
-      })
-      .promise();
+      // ensure it exists
+      const { Item: item } = await documentClient
+        .get({
+          TableName: tableName,
+          Key: key,
+        })
+        .promise();
 
-    expect(item).toEqual({
-      ...input,
+      expect(item).toEqual({
+        ...input,
+        version: 2,
+      });
     });
-  });
-});
+  }
+);
