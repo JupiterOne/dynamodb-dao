@@ -1,11 +1,12 @@
 import { DocumentClient } from 'aws-sdk/clients/dynamodb';
-import { UpdateOptions } from '../index';
+import { DEFAULT_LOCK_INCREMENT, UpdateOptions } from '../index';
 import { buildOptimisticLockOptions } from '../locking/buildOptimisticLockOptions';
 import { AttributeNames, AttributeValues } from '../types';
 
 export interface SaveBehavior {
   optimisticLockVersionAttribute?: string;
   optimisticLockVersionIncrement?: number;
+  autoInitiateLockingAttribute?: boolean;
 }
 
 export type DataModelAsMap = { [key: string]: any };
@@ -34,14 +35,28 @@ export function generateUpdateParams(
     optimisticLockVersionAttribute: versionAttribute,
     optimisticLockVersionIncrement: versionInc,
     ignoreOptimisticLocking: ignoreLocking = false,
+    autoInitiateLockingAttribute,
   } = options;
 
   let conditionExpression = options.conditionExpression;
 
   if (versionAttribute) {
-    addExpressions.push(`#${versionAttribute} :${versionAttribute}Inc`);
-    expressionAttributeNameMap[`#${versionAttribute}`] = versionAttribute;
-    expressionAttributeValueMap[`:${versionAttribute}Inc`] = versionInc ?? 1;
+    const providesVersion = versionAttribute in data;
+    // We'll only increment if the version is passed in.  This allows us to
+    // avoid setting a default version and require the caller to set it
+    // in order to start enforcing the lock
+    if (providesVersion || autoInitiateLockingAttribute) {
+      addExpressions.push(`#${versionAttribute} :${versionAttribute}Inc`);
+      expressionAttributeNameMap[`#${versionAttribute}`] = versionAttribute;
+      expressionAttributeValueMap[`:${versionAttribute}Inc`] =
+        versionInc ?? DEFAULT_LOCK_INCREMENT;
+
+      if (!ignoreLocking) {
+        expressionAttributeValueMap[`:${versionAttribute}`] = (
+          data as DataModelAsMap
+        )[versionAttribute];
+      }
+    }
 
     if (!ignoreLocking) {
       ({ conditionExpression } = buildOptimisticLockOptions({
@@ -49,9 +64,6 @@ export function generateUpdateParams(
         versionAttributeValue: (data as DataModelAsMap)[versionAttribute],
         conditionExpression,
       }));
-      expressionAttributeValueMap[`:${versionAttribute}`] = (
-        data as DataModelAsMap
-      )[versionAttribute];
     }
   }
 

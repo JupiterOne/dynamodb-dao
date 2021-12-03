@@ -2,7 +2,11 @@ import { sleep } from '@lifeomic/attempt';
 import { DocumentClient } from 'aws-sdk/clients/dynamodb';
 import chunk from 'lodash.chunk';
 import pMap from 'p-map';
-import { DEFAULT_QUERY_LIMIT, MAX_BATCH_OPERATIONS } from './constants';
+import {
+  DEFAULT_LOCK_INCREMENT,
+  DEFAULT_QUERY_LIMIT,
+  MAX_BATCH_OPERATIONS,
+} from './constants';
 import { buildOptimisticLockOptions } from './locking/buildOptimisticLockOptions';
 import {
   decodeQueryUntilLimitCursor,
@@ -54,8 +58,13 @@ export type DeleteOptions = ConditionalOptions & MutateBehavior;
 export interface DynamoDbDaoInput<T> {
   tableName: string;
   documentClient: DocumentClient;
-  optimisticLockingAttribute?: keyof NumberPropertiesInType<T>;
+  behavior: DynamoDbDaoBehavior<T>;
 }
+
+export type DynamoDbDaoBehavior<T> = {
+  optimisticLockingAttribute?: keyof NumberPropertiesInType<T>;
+  autoInitiateLockingAttribute?: boolean;
+};
 
 /**
  * This type is used to force functions like `incr` and `decr` to only take
@@ -76,12 +85,15 @@ export type NumberPropertiesInType<T> = Pick<
 export default class DynamoDbDao<DataModel, KeySchema> {
   public readonly tableName: string;
   public readonly documentClient: DocumentClient;
-  public readonly optimisticLockingAttribute?: keyof NumberPropertiesInType<DataModel>;
+  public readonly behavior: DynamoDbDaoBehavior<DataModel>;
 
   constructor(options: DynamoDbDaoInput<DataModel>) {
     this.tableName = options.tableName;
     this.documentClient = options.documentClient;
-    this.optimisticLockingAttribute = options.optimisticLockingAttribute;
+    this.behavior = {
+      autoInitiateLockingAttribute: true, // keeps this update backward compatible
+      ...options.behavior,
+    };
   }
 
   /**
@@ -114,8 +126,12 @@ export default class DynamoDbDao<DataModel, KeySchema> {
   ): Promise<DataModel | undefined> {
     let { attributeNames, attributeValues, conditionExpression } = options;
 
-    if (this.optimisticLockingAttribute && !options.ignoreOptimisticLocking) {
-      const versionAttribute = this.optimisticLockingAttribute.toString();
+    if (
+      this.behavior.optimisticLockingAttribute &&
+      !options.ignoreOptimisticLocking
+    ) {
+      const versionAttribute =
+        this.behavior.optimisticLockingAttribute.toString();
       ({ attributeNames, attributeValues, conditionExpression } =
         buildOptimisticLockOptions({
           versionAttribute,
@@ -144,11 +160,12 @@ export default class DynamoDbDao<DataModel, KeySchema> {
    */
   async put(data: DataModel, options: PutOptions = {}): Promise<DataModel> {
     let { conditionExpression, attributeNames, attributeValues } = options;
-    if (this.optimisticLockingAttribute) {
+    if (this.behavior.optimisticLockingAttribute) {
       // Must cast data to avoid tripping the linter, otherwise, it'll complain
       // about expression of type 'string' can't be used to index type 'unknown'
       const dataAsMap = data as DataModelAsMap;
-      const versionAttribute = this.optimisticLockingAttribute.toString();
+      const versionAttribute =
+        this.behavior.optimisticLockingAttribute.toString();
 
       if (!options.ignoreOptimisticLocking) {
         ({ conditionExpression, attributeNames, attributeValues } =
@@ -161,9 +178,13 @@ export default class DynamoDbDao<DataModel, KeySchema> {
           }));
       }
 
-      dataAsMap[versionAttribute] = dataAsMap[versionAttribute]
-        ? dataAsMap[versionAttribute] + 1
-        : 1;
+      // If the version attribute is supplied, increment it, otherwise only
+      // set the default if directed to do so
+      if (versionAttribute in data) {
+        dataAsMap[versionAttribute] += DEFAULT_LOCK_INCREMENT;
+      } else if (this.behavior.autoInitiateLockingAttribute) {
+        dataAsMap[versionAttribute] = DEFAULT_LOCK_INCREMENT;
+      }
     }
 
     await this.documentClient
@@ -186,14 +207,17 @@ export default class DynamoDbDao<DataModel, KeySchema> {
     data: Partial<DataModel>,
     updateOptions?: UpdateOptions
   ): Promise<DataModel> {
+    const optimisticLockVersionAttribute =
+      this.behavior.optimisticLockingAttribute?.toString();
     const params = generateUpdateParams({
       tableName: this.tableName,
       key,
       data,
       ...updateOptions,
-      optimisticLockVersionAttribute:
-        this.optimisticLockingAttribute?.toString(),
+      optimisticLockVersionAttribute,
+      autoInitiateLockingAttribute: this.behavior.autoInitiateLockingAttribute,
     });
+
     const { Attributes: attributes } = await this.documentClient
       .update(params)
       .promise();

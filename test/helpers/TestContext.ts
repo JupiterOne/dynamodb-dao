@@ -44,7 +44,8 @@ export default class TestContext {
   }
 
   static async setup(
-    useOptimisticLocking: boolean = false
+    useOptimisticLocking: boolean = false,
+    autoInitiateLockingAttribute: boolean = true
   ): Promise<TestContext> {
     const tableName = uuid();
     const indexName = uuid();
@@ -100,7 +101,12 @@ export default class TestContext {
     const dao = new DynamoDbDao<DataModel, KeySchema>({
       tableName,
       documentClient,
-      optimisticLockingAttribute: useOptimisticLocking ? 'version' : undefined,
+      behavior: {
+        optimisticLockingAttribute: useOptimisticLocking
+          ? 'version'
+          : undefined,
+        autoInitiateLockingAttribute,
+      },
     } as DynamoDbDaoInput<DataModel>);
 
     return new TestContext(tableName, indexName, dao);

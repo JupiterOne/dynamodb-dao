@@ -138,7 +138,8 @@ test('#generateUpdateParams should increment the version number', () => {
       TableName: options.tableName,
       Key: options.key,
       ReturnValues: 'ALL_NEW',
-      ConditionExpression: '#lockVersion = :lockVersion',
+      ConditionExpression:
+        '(#lockVersion = :lockVersion OR attribute_not_exists(lockVersion))',
       UpdateExpression:
         'add #lockVersion :lockVersionInc set #a0 = :a0, #a1 = :a1 remove #a2',
       ExpressionAttributeNames: {
@@ -156,7 +157,7 @@ test('#generateUpdateParams should increment the version number', () => {
     });
   }
 });
-test('#generateUpdateParams should increment the version number even when not supplied', () => {
+test('#generateUpdateParams should not increment the version number when not supplied', () => {
   {
     const options = {
       tableName: 'blah3',
@@ -175,19 +176,16 @@ test('#generateUpdateParams should increment the version number even when not su
       TableName: options.tableName,
       Key: options.key,
       ReturnValues: 'ALL_NEW',
-      UpdateExpression:
-        'add #lockVersion :lockVersionInc set #a0 = :a0, #a1 = :a1 remove #a2',
+      UpdateExpression: 'set #a0 = :a0, #a1 = :a1 remove #a2',
       ConditionExpression: 'attribute_not_exists(lockVersion)',
       ExpressionAttributeNames: {
         '#a0': 'a',
         '#a1': 'b',
         '#a2': 'c',
-        '#lockVersion': 'lockVersion',
       },
       ExpressionAttributeValues: {
         ':a0': options.data.a,
         ':a1': options.data.b,
-        ':lockVersionInc': 1,
       },
     });
   }

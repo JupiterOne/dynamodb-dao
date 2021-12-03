@@ -17,9 +17,8 @@ test('should require version number to remove item from the table', async () => 
   const { dao } = context;
 
   const key = { id: uuid() };
-  const updateData = { test: uuid(), newField: uuid() };
+  const updateData = { test: uuid(), newField: uuid(), version: 1 };
 
-  // put data into dynamodb, which should set the version number
   await dao.update(key, updateData);
   await dao.update(key, { ...updateData, version: 1 });
 
@@ -42,7 +41,7 @@ test('should error when version number is missing when removing item from the ta
   const { dao } = context;
 
   const key = { id: uuid() };
-  const updateData = { test: uuid(), newField: uuid() };
+  const updateData = { test: uuid(), newField: uuid(), version: 1 };
 
   // put data into dynamodb, which should set the version number
   await dao.update(key, updateData);
@@ -57,9 +56,8 @@ test('should error when version number is old when removing item from the table'
   const { dao } = context;
 
   const key = { id: uuid() };
-  const updateData = { test: uuid(), newField: uuid() };
+  const updateData = { test: uuid(), newField: uuid(), version: 1 };
 
-  // put data into dynamodb, which should set the version number
   await dao.update(key, updateData);
   await dao.update(key, { ...updateData, version: 1 });
 
@@ -74,9 +72,8 @@ test('should not require version number to remove item from the table when ignor
   const { dao } = context;
 
   const key = { id: uuid() };
-  const updateData = { test: uuid(), newField: uuid() };
+  const updateData = { test: uuid(), newField: uuid(), version: 1 };
 
-  // put data into dynamodb, which should set the version number
   await dao.update(key, updateData);
 
   // ensure it exists
