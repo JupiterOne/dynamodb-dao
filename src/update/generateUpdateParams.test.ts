@@ -190,3 +190,41 @@ test('#generateUpdateParams should not increment the version number when not sup
     });
   }
 });
+
+test('#generateUpdateParams should increment the version number when not supplied if auto-initiate is set', () => {
+  {
+    const options = {
+      tableName: 'blah3',
+      key: {
+        HashKey: 'abc',
+      },
+      data: {
+        a: 123,
+        b: 'abc',
+        c: undefined,
+      },
+      optimisticLockVersionAttribute: 'lockVersion',
+      autoInitiateLockingAttribute: true,
+    };
+
+    expect(generateUpdateParams(options)).toEqual({
+      TableName: options.tableName,
+      Key: options.key,
+      ReturnValues: 'ALL_NEW',
+      UpdateExpression:
+        'add #lockVersion :lockVersionInc set #a0 = :a0, #a1 = :a1 remove #a2',
+      ConditionExpression: 'attribute_not_exists(lockVersion)',
+      ExpressionAttributeNames: {
+        '#a0': 'a',
+        '#a1': 'b',
+        '#a2': 'c',
+        '#lockVersion': 'lockVersion',
+      },
+      ExpressionAttributeValues: {
+        ':a0': options.data.a,
+        ':a1': options.data.b,
+        ':lockVersionInc': 1,
+      },
+    });
+  }
+});

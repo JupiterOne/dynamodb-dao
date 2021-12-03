@@ -42,9 +42,7 @@ export function generateUpdateParams(
 
   if (versionAttribute) {
     const providesVersion = versionAttribute in data;
-    // We'll only increment if the version is passed in.  This allows us to
-    // avoid setting a default version and require the caller to set it
-    // in order to start enforcing the lock
+
     if (providesVersion || autoInitiateLockingAttribute) {
       addExpressions.push(`#${versionAttribute} :${versionAttribute}Inc`);
       expressionAttributeNameMap[`#${versionAttribute}`] = versionAttribute;
