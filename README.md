@@ -157,7 +157,14 @@ available toggles:
    const dao = new DynamoDbDao<DataModel, KeySchema>({
      tableName,
      documentClient,
-     optimisticLockingAttribute: 'version',
+     {
+       optimisticLockingAttribute: 'version',
+       // If true, the first put or update will create and initialize
+       // the 'version' attribute, otherwise it will not create it
+       // This allows adopters to choose to adopt at the item level
+       // or at the dao level
+       autoInitiateLockingAttribute: true, // default: true
+     }
    });
    ```
 
