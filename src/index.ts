@@ -24,10 +24,10 @@ import {
   BatchWriteWithExponentialBackoffParams,
   CountOutput,
   GetItemOptions,
+  QueryInput,
   QueryInputWithLimit,
   QueryResult,
   ScanInput,
-  Types,
 } from './types';
 import {
   DataModelAsMap,
@@ -254,7 +254,7 @@ export default class DynamoDbDao<DataModel, KeySchema> {
   /**
    * Executes a query to fetch a count
    */
-  async count(input: Types): Promise<CountOutput> {
+  async count(input: QueryInput): Promise<CountOutput> {
     const {
       index,
       attributeValues,
@@ -299,7 +299,7 @@ export default class DynamoDbDao<DataModel, KeySchema> {
   /**
    * Executes a query on the table
    */
-  async query(input: Types): Promise<QueryResult<DataModel>> {
+  async query(input: QueryInput): Promise<QueryResult<DataModel>> {
     const {
       index,
       startAt,

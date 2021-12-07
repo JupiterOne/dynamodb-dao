@@ -22,14 +22,14 @@ export interface CountOutput {
   lastKey?: string;
 }
 
-export interface Types extends BaseScanInput {
+export interface QueryInput extends BaseScanInput {
   scanIndexForward?: boolean;
   keyConditionExpression: string;
   attributeValues: AttributeValues;
   consistentRead?: boolean;
 }
 
-export interface QueryInputWithLimit extends Types {
+export interface QueryInputWithLimit extends QueryInput {
   limit: number;
 }
 
