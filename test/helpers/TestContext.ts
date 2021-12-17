@@ -101,12 +101,8 @@ export default class TestContext {
     const dao = new DynamoDbDao<DataModel, KeySchema>({
       tableName,
       documentClient,
-      behavior: {
-        optimisticLockingAttribute: useOptimisticLocking
-          ? 'version'
-          : undefined,
-        autoInitiateLockingAttribute,
-      },
+      optimisticLockingAttribute: useOptimisticLocking ? 'version' : undefined,
+      autoInitiateLockingAttribute,
     } as DynamoDbDaoInput<DataModel>);
 
     return new TestContext(tableName, indexName, dao);

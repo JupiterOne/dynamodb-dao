@@ -58,13 +58,9 @@ export type DeleteOptions = ConditionalOptions & MutateBehavior;
 export interface DynamoDbDaoInput<T> {
   tableName: string;
   documentClient: DocumentClient;
-  behavior?: DynamoDbDaoBehavior<T>;
-}
-
-export type DynamoDbDaoBehavior<T> = {
   optimisticLockingAttribute?: keyof NumberPropertiesInType<T>;
   autoInitiateLockingAttribute?: boolean;
-};
+}
 
 /**
  * This type is used to force functions like `incr` and `decr` to only take
@@ -85,15 +81,19 @@ export type NumberPropertiesInType<T> = Pick<
 export default class DynamoDbDao<DataModel, KeySchema> {
   public readonly tableName: string;
   public readonly documentClient: DocumentClient;
-  public readonly behavior: DynamoDbDaoBehavior<DataModel>;
+  public readonly optimisticLockingAttribute?: keyof NumberPropertiesInType<DataModel>;
+  public readonly autoInitiateLockingAttribute?: boolean;
 
   constructor(options: DynamoDbDaoInput<DataModel>) {
     this.tableName = options.tableName;
     this.documentClient = options.documentClient;
-    this.behavior = {
-      autoInitiateLockingAttribute: true, // keeps this update backward compatible
-      ...options.behavior,
-    };
+    // The prior version implemented auto-initiate, so
+    // we'll default to true to retain backward compatibility
+    this.autoInitiateLockingAttribute =
+      options.autoInitiateLockingAttribute === undefined
+        ? true
+        : options.autoInitiateLockingAttribute;
+    this.optimisticLockingAttribute = options.optimisticLockingAttribute;
   }
 
   /**
@@ -126,12 +126,8 @@ export default class DynamoDbDao<DataModel, KeySchema> {
   ): Promise<DataModel | undefined> {
     let { attributeNames, attributeValues, conditionExpression } = options;
 
-    if (
-      this.behavior?.optimisticLockingAttribute &&
-      !options.ignoreOptimisticLocking
-    ) {
-      const versionAttribute =
-        this.behavior?.optimisticLockingAttribute.toString();
+    if (this.optimisticLockingAttribute && !options.ignoreOptimisticLocking) {
+      const versionAttribute = this.optimisticLockingAttribute.toString();
       ({ attributeNames, attributeValues, conditionExpression } =
         buildOptimisticLockOptions({
           versionAttribute,
@@ -160,12 +156,11 @@ export default class DynamoDbDao<DataModel, KeySchema> {
    */
   async put(data: DataModel, options: PutOptions = {}): Promise<DataModel> {
     let { conditionExpression, attributeNames, attributeValues } = options;
-    if (this.behavior?.optimisticLockingAttribute) {
+    if (this.optimisticLockingAttribute) {
       // Must cast data to avoid tripping the linter, otherwise, it'll complain
       // about expression of type 'string' can't be used to index type 'unknown'
       const dataAsMap = data as DataModelAsMap;
-      const versionAttribute =
-        this.behavior?.optimisticLockingAttribute.toString();
+      const versionAttribute = this.optimisticLockingAttribute.toString();
 
       if (!options.ignoreOptimisticLocking) {
         ({ conditionExpression, attributeNames, attributeValues } =
@@ -182,7 +177,7 @@ export default class DynamoDbDao<DataModel, KeySchema> {
       // set the default if directed to do so
       if (versionAttribute in data) {
         dataAsMap[versionAttribute] += DEFAULT_LOCK_INCREMENT;
-      } else if (this.behavior?.autoInitiateLockingAttribute) {
+      } else if (this.autoInitiateLockingAttribute) {
         dataAsMap[versionAttribute] = DEFAULT_LOCK_INCREMENT;
       }
     }
@@ -208,14 +203,14 @@ export default class DynamoDbDao<DataModel, KeySchema> {
     updateOptions?: UpdateOptions
   ): Promise<DataModel> {
     const optimisticLockVersionAttribute =
-      this.behavior.optimisticLockingAttribute?.toString();
+      this.optimisticLockingAttribute?.toString();
     const params = generateUpdateParams({
       tableName: this.tableName,
       key,
       data,
       ...updateOptions,
       optimisticLockVersionAttribute,
-      autoInitiateLockingAttribute: this.behavior?.autoInitiateLockingAttribute,
+      autoInitiateLockingAttribute: this.autoInitiateLockingAttribute,
     });
 
     const { Attributes: attributes } = await this.documentClient
