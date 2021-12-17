@@ -2,7 +2,11 @@ import { sleep } from '@lifeomic/attempt';
 import { DocumentClient } from 'aws-sdk/clients/dynamodb';
 import chunk from 'lodash.chunk';
 import pMap from 'p-map';
-import { DEFAULT_QUERY_LIMIT, MAX_BATCH_OPERATIONS } from './constants';
+import {
+  DEFAULT_LOCK_INCREMENT,
+  DEFAULT_QUERY_LIMIT,
+  MAX_BATCH_OPERATIONS,
+} from './constants';
 import { buildOptimisticLockOptions } from './locking/buildOptimisticLockOptions';
 import {
   decodeQueryUntilLimitCursor,
@@ -55,6 +59,7 @@ export interface DynamoDbDaoInput<T> {
   tableName: string;
   documentClient: DocumentClient;
   optimisticLockingAttribute?: keyof NumberPropertiesInType<T>;
+  autoInitiateLockingAttribute?: boolean;
 }
 
 /**
@@ -77,10 +82,17 @@ export default class DynamoDbDao<DataModel, KeySchema> {
   public readonly tableName: string;
   public readonly documentClient: DocumentClient;
   public readonly optimisticLockingAttribute?: keyof NumberPropertiesInType<DataModel>;
+  public readonly autoInitiateLockingAttribute?: boolean;
 
   constructor(options: DynamoDbDaoInput<DataModel>) {
     this.tableName = options.tableName;
     this.documentClient = options.documentClient;
+    // The prior version implemented auto-initiate, so
+    // we'll default to true to retain backward compatibility
+    this.autoInitiateLockingAttribute =
+      options.autoInitiateLockingAttribute === undefined
+        ? true
+        : options.autoInitiateLockingAttribute;
     this.optimisticLockingAttribute = options.optimisticLockingAttribute;
   }
 
@@ -161,9 +173,13 @@ export default class DynamoDbDao<DataModel, KeySchema> {
           }));
       }
 
-      dataAsMap[versionAttribute] = dataAsMap[versionAttribute]
-        ? dataAsMap[versionAttribute] + 1
-        : 1;
+      // If the version attribute is supplied, increment it, otherwise only
+      // set the default if directed to do so
+      if (versionAttribute in data) {
+        dataAsMap[versionAttribute] += DEFAULT_LOCK_INCREMENT;
+      } else if (this.autoInitiateLockingAttribute) {
+        dataAsMap[versionAttribute] = DEFAULT_LOCK_INCREMENT;
+      }
     }
 
     await this.documentClient
@@ -186,14 +202,17 @@ export default class DynamoDbDao<DataModel, KeySchema> {
     data: Partial<DataModel>,
     updateOptions?: UpdateOptions
   ): Promise<DataModel> {
+    const optimisticLockVersionAttribute =
+      this.optimisticLockingAttribute?.toString();
     const params = generateUpdateParams({
       tableName: this.tableName,
       key,
       data,
       ...updateOptions,
-      optimisticLockVersionAttribute:
-        this.optimisticLockingAttribute?.toString(),
+      optimisticLockVersionAttribute,
+      autoInitiateLockingAttribute: this.autoInitiateLockingAttribute,
     });
+
     const { Attributes: attributes } = await this.documentClient
       .update(params)
       .promise();

@@ -11,15 +11,18 @@ export function buildOptimisticLockOptions(
   const { versionAttribute, versionAttributeValue } = options;
   let { conditionExpression, attributeNames, attributeValues } = options;
 
-  const lockExpression = versionAttributeValue
-    ? `#${versionAttribute} = :${versionAttribute}`
+  // 0 can be passed and is valid, so we need to be specific
+  const versionIsSupplied = versionAttributeValue !== undefined;
+
+  const lockExpression = versionIsSupplied
+    ? `(#${versionAttribute} = :${versionAttribute} OR attribute_not_exists(${versionAttribute}))`
     : `attribute_not_exists(${versionAttribute})`;
 
   conditionExpression = conditionExpression
     ? `(${conditionExpression}) AND ${lockExpression}`
     : lockExpression;
 
-  if (versionAttributeValue) {
+  if (versionIsSupplied) {
     attributeNames = {
       ...attributeNames,
       [`#${versionAttribute}`]: versionAttribute,
