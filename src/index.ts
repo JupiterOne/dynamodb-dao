@@ -175,7 +175,7 @@ export default class DynamoDbDao<DataModel, KeySchema> {
 
       // If the version attribute is supplied, increment it, otherwise only
       // set the default if directed to do so
-      if (versionAttribute in data) {
+      if (versionAttribute in data && !isNaN(dataAsMap[versionAttribute])) {
         dataAsMap[versionAttribute] += DEFAULT_LOCK_INCREMENT;
       } else if (this.autoInitiateLockingAttribute) {
         dataAsMap[versionAttribute] = DEFAULT_LOCK_INCREMENT;

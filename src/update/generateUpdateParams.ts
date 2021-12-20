@@ -39,9 +39,11 @@ export function generateUpdateParams(
   } = options;
 
   let conditionExpression = options.conditionExpression;
+  const dataAsMap = data as DataModelAsMap;
 
   if (versionAttribute) {
-    const providesVersion = versionAttribute in data;
+    const providesVersion =
+      versionAttribute in data && !isNaN(dataAsMap[versionAttribute]);
 
     if (providesVersion || autoInitiateLockingAttribute) {
       addExpressions.push(`#${versionAttribute} :${versionAttribute}Inc`);
@@ -50,16 +52,15 @@ export function generateUpdateParams(
         versionInc ?? DEFAULT_LOCK_INCREMENT;
 
       if (!ignoreLocking) {
-        expressionAttributeValueMap[`:${versionAttribute}`] = (
-          data as DataModelAsMap
-        )[versionAttribute];
+        expressionAttributeValueMap[`:${versionAttribute}`] =
+          dataAsMap[versionAttribute];
       }
     }
 
     if (!ignoreLocking) {
       ({ conditionExpression } = buildOptimisticLockOptions({
         versionAttribute,
-        versionAttributeValue: (data as DataModelAsMap)[versionAttribute],
+        versionAttributeValue: dataAsMap[versionAttribute],
         conditionExpression,
       }));
     }

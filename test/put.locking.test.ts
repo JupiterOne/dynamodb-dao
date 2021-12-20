@@ -43,6 +43,34 @@ describe.each([true, false])(
       });
     });
 
+    test('should / should not add version number on first put when version undefined', async () => {
+      const { tableName, dao } = context;
+
+      const key = { id: uuid() };
+
+      const input = {
+        ...key,
+        test: uuid(),
+        version: undefined,
+      };
+
+      // put data into dynamodb
+      await dao.put(input);
+
+      // ensure it exists
+      const { Item: item } = await documentClient
+        .get({
+          TableName: tableName,
+          Key: key,
+        })
+        .promise();
+
+      expect(item).toEqual({
+        ...input,
+        version: autoInitiateLockingAttribute ? 1 : undefined,
+      });
+    });
+
     test('should throw error if version number is not supplied on second update', async () => {
       const { dao } = context;
 
