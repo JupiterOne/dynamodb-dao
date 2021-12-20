@@ -69,6 +69,25 @@ describe.each([true, false])(
       });
     });
 
+    test('should handle undefined version', async () => {
+      const { tableName, dao } = context;
+      const updateData = { test: uuid(), newField: uuid(), version: undefined };
+      await dao.update(key, updateData);
+
+      const { Item: updatedItem } = await documentClient
+        .get({
+          TableName: tableName,
+          Key: key,
+        })
+        .promise();
+
+      expect(updatedItem).toEqual({
+        ...item,
+        ...updateData,
+        version: autoInitiateLockingAttribute ? 1 : undefined,
+      });
+    });
+
     test('should set the version number on first update if supplied', async () => {
       const { tableName, dao } = context;
       const updateData = { test: uuid(), newField: uuid(), version: 0 };
