@@ -232,6 +232,14 @@ export default class DynamoDbDao<DataModel, KeySchema> {
     return this.multiIncr(key, { [attr]: incrBy } as IncrMap<DataModel>);
   }
 
+  async decr(
+    key: KeySchema,
+    attr: keyof NumberPropertiesInType<DataModel>,
+    decrBy = 1
+  ): Promise<DataModel> {
+    return this.multiIncr(key, { [attr]: decrBy * -1 } as IncrMap<DataModel>);
+  }
+
   async multiIncr(
     key: KeySchema,
     incrMap: IncrMap<DataModel>
@@ -271,31 +279,6 @@ export default class DynamoDbDao<DataModel, KeySchema> {
 
     const { Attributes: attributes } = await this.documentClient
       .update(updateParams)
-      .promise();
-
-    return attributes as DataModel;
-  }
-
-  async decr(
-    key: KeySchema,
-    attr: keyof NumberPropertiesInType<DataModel>,
-    decrBy = 1
-  ): Promise<DataModel> {
-    const { Attributes: attributes } = await this.documentClient
-      .update({
-        TableName: this.tableName,
-        Key: key,
-        UpdateExpression:
-          'SET #decrAttr = if_not_exists(#decrAttr, :start) - :dec',
-        ExpressionAttributeNames: {
-          '#decrAttr': attr as string,
-        },
-        ExpressionAttributeValues: {
-          ':dec': decrBy,
-          ':start': 0,
-        },
-        ReturnValues: 'ALL_NEW',
-      })
       .promise();
 
     return attributes as DataModel;
