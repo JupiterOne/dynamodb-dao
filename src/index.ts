@@ -253,7 +253,8 @@ export default class DynamoDbDao<DataModel, KeySchema> {
         `Increments must be integers: ${JSON.stringify(errorEntries)}`
       );
     }
-    const updateParams: any = {
+
+    const updateParams: DocumentClient.UpdateItemInput = {
       TableName: this.tableName,
       Key: key,
       UpdateExpression: 'SET',
@@ -265,16 +266,14 @@ export default class DynamoDbDao<DataModel, KeySchema> {
     };
 
     incrEntries.forEach(([key, value], i) => {
-      // No need to do anything when the increment is 0
-      if (!value) return;
       const includeComma = i !== incrEntries.length - 1;
       const attrName = `#incrAttr${i}`;
       const valueName = `:inc${i}`;
       updateParams.UpdateExpression += ` ${attrName} = if_not_exists(${attrName}, :start) + ${valueName}${
         includeComma ? ',' : ''
       }`;
-      updateParams.ExpressionAttributeNames[attrName] = key;
-      updateParams.ExpressionAttributeValues[valueName] = value;
+      updateParams.ExpressionAttributeNames![attrName] = key;
+      updateParams.ExpressionAttributeValues![valueName] = value;
     });
 
     const { Attributes: attributes } = await this.documentClient

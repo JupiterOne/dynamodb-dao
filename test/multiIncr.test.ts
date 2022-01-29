@@ -69,6 +69,34 @@ test(`#multiIncr should support decrementing`, async () => {
   expect(result).toEqual(expected);
 });
 
+test(`#multiIncr should support increments of 0`, async () => {
+  const key: KeySchema = {
+    id: uuid(),
+  };
+
+  const data: DataModel = {
+    ...key,
+    test: uuid(),
+    version: 2,
+  };
+
+  await context.dao.put(data);
+
+  const result = await context.dao.multiIncr(
+    {
+      id: key.id,
+    },
+    { version: 0 }
+  );
+
+  const expected: DataModel = {
+    ...data,
+    version: 2,
+  };
+
+  expect(result).toEqual(expected);
+});
+
 test(`#multiIncr should support a custom number to increment by`, async () => {
   const key: KeySchema = {
     id: uuid(),
