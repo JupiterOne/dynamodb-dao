@@ -75,10 +75,6 @@ export type NumberPropertiesInType<T> = Pick<
   }[keyof T]
 >;
 
-function isPositiveInteger(value: number) {
-  return Number.isInteger(value) && (value as Number) >= 1;
-}
-
 type IncrMap<DataModel> = {
   [key in keyof NumberPropertiesInType<DataModel>]: number;
 };
@@ -242,11 +238,11 @@ export default class DynamoDbDao<DataModel, KeySchema> {
   ): Promise<DataModel> {
     const incrEntries = Object.entries<number>(incrMap);
     const errorEntries = incrEntries.filter(
-      ([_key, value]) => !isPositiveInteger(value)
+      ([_key, value]) => !Number.isInteger(value)
     );
     if (errorEntries.length) {
       throw new Error(
-        `Increments must be positive integers: ${JSON.stringify(errorEntries)}`
+        `Increments must be integers: ${JSON.stringify(errorEntries)}`
       );
     }
     const updateParams: any = {
@@ -261,6 +257,8 @@ export default class DynamoDbDao<DataModel, KeySchema> {
     };
 
     incrEntries.forEach(([key, value], i) => {
+      // No need to do anything when the increment is 0
+      if (!value) return;
       const includeComma = i !== incrEntries.length - 1;
       const attrName = `#incrAttr${i}`;
       const valueName = `:inc${i}`;

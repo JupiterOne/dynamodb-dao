@@ -137,10 +137,10 @@ const { total } = await myDocumentDao.decr(
 );
 ```
 
-When multiple values must be incremented in the same call:
+When multiple values must be incremented and/or decremented in the same call:
 
 ```ts
-// `total` will have the value `5` and `extra` will have the value 1.
+// `total` will have the value `5` and `extra` will have the value -1.
 const { extra, total } = await myDocumentDao.multiIncr(
   {
     id: 'abc',
@@ -148,7 +148,7 @@ const { extra, total } = await myDocumentDao.multiIncr(
   },
   {
     'total': 5,
-    'extra': 1,
+    'extra': -1,
   },
 );
 ```
