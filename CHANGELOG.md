@@ -8,6 +8,12 @@ and this project adheres to
 
 ## [Unreleased]
 
+## 1.7.0 - 2021-01-31
+
+### Added
+
+- `multiIncr` API
+
 ## 1.4.0 - 2021-09-22
 
 ### Added
