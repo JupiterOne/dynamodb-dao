@@ -229,22 +229,33 @@ export default class DynamoDbDao<DataModel, KeySchema> {
   async incr(
     key: KeySchema,
     attr: keyof NumberPropertiesInType<DataModel>,
-    incrBy = 1
+    incrBy = 1,
+    conditionExpression?: string
   ): Promise<DataModel> {
-    return this.multiIncr(key, { [attr]: incrBy } as IncrMap<DataModel>);
+    return this.multiIncr(
+      key,
+      { [attr]: incrBy } as IncrMap<DataModel>,
+      conditionExpression
+    );
   }
 
   async decr(
     key: KeySchema,
     attr: keyof NumberPropertiesInType<DataModel>,
-    decrBy = 1
+    decrBy = 1,
+    conditionExpression?: string
   ): Promise<DataModel> {
-    return this.multiIncr(key, { [attr]: decrBy * -1 } as IncrMap<DataModel>);
+    return this.multiIncr(
+      key,
+      { [attr]: decrBy * -1 } as IncrMap<DataModel>,
+      conditionExpression
+    );
   }
 
   async multiIncr(
     key: KeySchema,
-    incrMap: IncrMap<DataModel>
+    incrMap: IncrMap<DataModel>,
+    conditionExpression?: string
   ): Promise<DataModel> {
     const incrEntries = Object.entries(incrMap);
     const errorEntries = incrEntries.filter(
@@ -260,6 +271,7 @@ export default class DynamoDbDao<DataModel, KeySchema> {
       TableName: this.tableName,
       Key: key,
       UpdateExpression: 'SET',
+      ConditionExpression: conditionExpression,
       ExpressionAttributeNames: {},
       ExpressionAttributeValues: {
         ':start': 0,

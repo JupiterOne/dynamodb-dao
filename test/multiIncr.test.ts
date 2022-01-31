@@ -272,3 +272,46 @@ test(`#multiIncr should error when increments are not integers.`, async () => {
     )
   ).rejects.toThrowError('Increments must be integers');
 });
+
+test(`#multiIncr should support conditionExpressions`, async () => {
+  const key: KeySchema = {
+    id: uuid(),
+  };
+  const data: DataModel = {
+    ...key,
+    test: uuid(),
+    version: 1,
+  };
+
+  await context.dao.put(data);
+
+  const result = await context.dao.multiIncr(
+    {
+      id: key.id,
+    },
+    { version: 1 },
+    'attribute_exists(id)'
+  );
+
+  const expected: DataModel = {
+    ...data,
+    version: 2,
+  };
+
+  expect(result).toEqual(expected);
+});
+
+test(`#multiIncr should support conditionExpressions failures`, async () => {
+  const key: KeySchema = {
+    id: uuid(),
+  };
+  await expect(
+    context.dao.multiIncr(
+      {
+        id: key.id,
+      },
+      { version: 1 },
+      'attribute_exists(id)'
+    )
+  ).rejects.toThrowError(/conditional request/);
+});
