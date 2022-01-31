@@ -8,6 +8,12 @@ and this project adheres to
 
 ## [Unreleased]
 
+## 1.7.1- 2021-01-31
+
+### Fixed
+
+- Parameter type `IncrMap` of the `multiIncr` API to only be partial.
+
 ## 1.7.0 - 2021-01-31
 
 ### Added
