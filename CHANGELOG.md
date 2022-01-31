@@ -8,6 +8,12 @@ and this project adheres to
 
 ## [Unreleased]
 
+## 1.7.2- 2021-01-31
+
+### Added
+
+- The `multiIncr` API to support DynamoDB "ConditionalExpressions".
+
 ## 1.7.1- 2021-01-31
 
 ### Fixed
