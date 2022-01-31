@@ -75,9 +75,11 @@ export type NumberPropertiesInType<T> = Pick<
   }[keyof T]
 >;
 
-type IncrMap<DataModel> = {
-  [key in keyof NumberPropertiesInType<DataModel>]: number;
-};
+type IncrMap<DataModel> = Partial<
+  {
+    [key in keyof NumberPropertiesInType<DataModel>]: number;
+  }
+>;
 
 /**
  * A base dynamodb dao class that enforces types
@@ -244,7 +246,7 @@ export default class DynamoDbDao<DataModel, KeySchema> {
     key: KeySchema,
     incrMap: IncrMap<DataModel>
   ): Promise<DataModel> {
-    const incrEntries = Object.entries<number>(incrMap);
+    const incrEntries = Object.entries(incrMap);
     const errorEntries = incrEntries.filter(
       ([_key, value]) => !Number.isInteger(value)
     );
