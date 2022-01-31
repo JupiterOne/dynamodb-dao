@@ -137,6 +137,22 @@ const { total } = await myDocumentDao.decr(
 );
 ```
 
+When multiple values must be incremented and/or decremented in the same call:
+
+```ts
+// `total` will have the value `5` and `extra` will have the value -1.
+const { extra, total } = await myDocumentDao.multiIncr(
+  {
+    id: 'abc',
+    accountId: 'def',
+  },
+  {
+    'total': 5,
+    'extra': -1,
+  },
+);
+```
+
 **Optimistic Locking with Version Numbers**
 
 For callers who wish to enable an optimistic locking strategy there are two

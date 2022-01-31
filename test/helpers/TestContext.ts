@@ -14,6 +14,7 @@ export interface DataModel extends KeySchema {
   test: string;
   status?: string;
   version?: number;
+  extra?: number;
 }
 
 const dynamodb = new DynamoDB({

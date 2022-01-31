@@ -75,6 +75,10 @@ export type NumberPropertiesInType<T> = Pick<
   }[keyof T]
 >;
 
+type IncrMap<DataModel> = {
+  [key in keyof NumberPropertiesInType<DataModel>]: number;
+};
+
 /**
  * A base dynamodb dao class that enforces types
  */
@@ -225,24 +229,7 @@ export default class DynamoDbDao<DataModel, KeySchema> {
     attr: keyof NumberPropertiesInType<DataModel>,
     incrBy = 1
   ): Promise<DataModel> {
-    const { Attributes: attributes } = await this.documentClient
-      .update({
-        TableName: this.tableName,
-        Key: key,
-        UpdateExpression:
-          'SET #incrAttr = if_not_exists(#incrAttr, :start) + :inc',
-        ExpressionAttributeNames: {
-          '#incrAttr': attr as string,
-        },
-        ExpressionAttributeValues: {
-          ':inc': incrBy,
-          ':start': 0,
-        },
-        ReturnValues: 'ALL_NEW',
-      })
-      .promise();
-
-    return attributes as DataModel;
+    return this.multiIncr(key, { [attr]: incrBy } as IncrMap<DataModel>);
   }
 
   async decr(
@@ -250,21 +237,47 @@ export default class DynamoDbDao<DataModel, KeySchema> {
     attr: keyof NumberPropertiesInType<DataModel>,
     decrBy = 1
   ): Promise<DataModel> {
+    return this.multiIncr(key, { [attr]: decrBy * -1 } as IncrMap<DataModel>);
+  }
+
+  async multiIncr(
+    key: KeySchema,
+    incrMap: IncrMap<DataModel>
+  ): Promise<DataModel> {
+    const incrEntries = Object.entries<number>(incrMap);
+    const errorEntries = incrEntries.filter(
+      ([_key, value]) => !Number.isInteger(value)
+    );
+    if (errorEntries.length) {
+      throw new Error(
+        `Increments must be integers: ${JSON.stringify(errorEntries)}`
+      );
+    }
+
+    const updateParams: DocumentClient.UpdateItemInput = {
+      TableName: this.tableName,
+      Key: key,
+      UpdateExpression: 'SET',
+      ExpressionAttributeNames: {},
+      ExpressionAttributeValues: {
+        ':start': 0,
+      },
+      ReturnValues: 'ALL_NEW',
+    };
+
+    incrEntries.forEach(([key, value], i) => {
+      const includeComma = i !== incrEntries.length - 1;
+      const attrName = `#incrAttr${i}`;
+      const valueName = `:inc${i}`;
+      updateParams.UpdateExpression += ` ${attrName} = if_not_exists(${attrName}, :start) + ${valueName}${
+        includeComma ? ',' : ''
+      }`;
+      updateParams.ExpressionAttributeNames![attrName] = key;
+      updateParams.ExpressionAttributeValues![valueName] = value;
+    });
+
     const { Attributes: attributes } = await this.documentClient
-      .update({
-        TableName: this.tableName,
-        Key: key,
-        UpdateExpression:
-          'SET #decrAttr = if_not_exists(#decrAttr, :start) - :dec',
-        ExpressionAttributeNames: {
-          '#decrAttr': attr as string,
-        },
-        ExpressionAttributeValues: {
-          ':dec': decrBy,
-          ':start': 0,
-        },
-        ReturnValues: 'ALL_NEW',
-      })
+      .update(updateParams)
       .promise();
 
     return attributes as DataModel;
