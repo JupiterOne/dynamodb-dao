@@ -427,18 +427,25 @@ export default class DynamoDbDao<DataModel, KeySchema> {
           // we reached our limit so we need to stop iterator
           return {
             items,
-
-            // If `(i < curLen - 1)` then that means that we did not read
-            // one or more records on the current page. That means that
-            // we will need to read this page again but skip the records
-            // that we have already read.
             lastKey:
-              i < curLen - 1
+              // If i == curLen - 1, that means that we have seen all of the
+              // items on this page, so we do not need to return a lastKey
+              i == curLen - 1
+                ? undefined
+                : // If `(i < curLen - 1)` then that means that we did not read
+                // one or more records on the current page. That means that
+                // we will need to read this page again but skip the records
+                // that we have already read.
+                i < curLen - 1
                 ? encodeQueryUntilLimitCursor(params.startAt, i + 1)
                 : encodeQueryUntilLimitCursor(queryResult.lastKey, 0),
           };
         }
       }
+
+      // if on the second page,
+      //    i >= curLen - 1
+      //    queryResult.items = 1
 
       // only apply skip after the first query so we reset it here
       cursor.skip = 0;

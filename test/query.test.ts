@@ -1,3 +1,5 @@
+import chunk from 'lodash.chunk';
+import pMap from 'p-map';
 import { v4 as uuid } from 'uuid';
 import { QueryInputWithLimit } from '../src/types';
 import TestContext, { documentClient } from './helpers/TestContext';
@@ -215,4 +217,79 @@ test('#queryUntilLimitReached should automatically keep querying until user-prov
       test: testHashKey,
     },
   ]);
+});
+
+/**
+ * There was a bizarre error that showed up in a couple different services, where a specific combination of
+ * Dynamo filter expressions and item lengths would cause a cursor to be returned of "0|" when it should have
+ * an undefined or null cursor.  This would cause an infinite loop if the caller was just checking for the
+ * presence of the cursor, because there was no skip or lastKey as a part of that returned cursor.
+ *
+ * This showed up as infinite loops in the policy-service and task-service, and I'm suspect that it has showed
+ * up elsewhere undetected as well - Henry
+ */
+test('#queryUntilLimitReached should return an undefined cursor when the filterExpression only filters out minimal items', async () => {
+  /**
+   * The error would show up in particular if the second page of a queryUntilLimitReached request only had one item.
+   *
+   * So here we can test this by adding 1 more item than the page size, and making one item in the first page hit the filter expression
+   */
+  const { indexName, dao } = context;
+
+  const putRequests = [];
+  const hashKey = uuid();
+
+  for (let i = 0; i < 101; i++) {
+    // put data into dynamodb
+    const item = {
+      id: '' + i,
+      index: i,
+      test: hashKey,
+    };
+
+    if (i == 90) {
+      (item as any).deletedOn = Date.now();
+    }
+
+    items.push(item);
+    putRequests.push({
+      PutRequest: {
+        Item: item,
+      },
+    });
+  }
+
+  await pMap(
+    chunk(putRequests, 25),
+    async (putRequestChunk) => {
+      await documentClient
+        .batchWrite({
+          RequestItems: {
+            [context.tableName]: putRequestChunk,
+          },
+        })
+        .promise();
+    },
+    { concurrency: 1 }
+  );
+
+  const params: QueryInputWithLimit = {
+    index: indexName,
+    keyConditionExpression: '#test = :test',
+    filterExpression: 'attribute_not_exists(#deletedOn)',
+    attributeNames: {
+      '#test': 'test',
+      '#deletedOn': 'deletedOn',
+    },
+    attributeValues: {
+      ':test': hashKey,
+    },
+    limit: 100,
+    startAt: undefined,
+  };
+
+  const result1 = await dao.queryUntilLimitReached(params);
+
+  expect(result1.lastKey).toBeUndefined();
+  expect(result1.items).toHaveLength(100);
 });
