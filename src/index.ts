@@ -425,20 +425,29 @@ export default class DynamoDbDao<DataModel, KeySchema> {
         items.push(item);
         if (items.length >= limit) {
           // we reached our limit so we need to stop iterator
+
+          let newLastKey: string | undefined = undefined;
+          if (i === curLen - 1) {
+            // If i == curLen - 1, that means that we have seen all of the
+            // items on this page, so we only need to return a lastKey if it
+            // is deifned
+            newLastKey = queryResult.lastKey
+              ? encodeQueryUntilLimitCursor(queryResult.lastKey, 0)
+              : undefined;
+          } else {
+            // If `(i < curLen - 1)` then that means that we did not read
+            // one or more records on the current page. That means that
+            // we will need to read this page again but skip the records
+            // that we have already read.
+            newLastKey =
+              i < curLen - 1
+                ? encodeQueryUntilLimitCursor(params.startAt, i + 1)
+                : encodeQueryUntilLimitCursor(queryResult.lastKey, 0);
+          }
+
           return {
             items,
-            lastKey:
-              // If i == curLen - 1, that means that we have seen all of the
-              // items on this page, so we do not need to return a lastKey
-              i == curLen - 1
-                ? undefined
-                : // If `(i < curLen - 1)` then that means that we did not read
-                // one or more records on the current page. That means that
-                // we will need to read this page again but skip the records
-                // that we have already read.
-                i < curLen - 1
-                ? encodeQueryUntilLimitCursor(params.startAt, i + 1)
-                : encodeQueryUntilLimitCursor(queryResult.lastKey, 0),
+            lastKey: newLastKey,
           };
         }
       }
