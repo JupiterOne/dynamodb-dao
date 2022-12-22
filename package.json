@@ -7,9 +7,6 @@
   "repository": "git@github.com:jupiterone/dynamodb-dao.git",
   "author": "JupiterOne <dev@jupiterone.io>",
   "license": "MIT",
-  "engines": {
-    "node": "10.x || 12.x || 14.x"
-  },
   "publishConfig": {
     "access": "public"
   },
