@@ -2,11 +2,11 @@ version: '3'
 
 services:
   dynamodb:
-    image: 'amazon/dynamodb-local'
+    image: 'public.ecr.aws/aws-dynamodb-local/aws-dynamodb-local:1.19.0'
     ports:
       - 8000:8000
   test:
-    image: node:12.10-alpine
+    image: public.ecr.aws/docker/library/node:18-alpine3.16
     environment:
       - DYNAMODB_ENDPOINT=http://dynamodb:8000
     depends_on:
