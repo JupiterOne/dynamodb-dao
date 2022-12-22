@@ -38,7 +38,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: [12]
+        node: [18]
 
     steps:
       - name: Setup Node
@@ -51,18 +51,19 @@ jobs:
         with:
           fetch-depth: 2
 
-      # Fetch tags and describe the commit before the merge commit
-      # to see if it's a version publish
-      - name: Fetch tags
+      - name: Check if publish needed
         run: |
-          git fetch --tags
-          if git describe --exact-match --match "v*.*.*" HEAD^2
+          name="$(jq -r .name package.json)"
+          npmver="$(npm show $name version || echo v0.0.0)"
+          pkgver="$(jq -r .version package.json)"
+          if [ "$npmver" = "$pkgver" ]
           then
-            echo "Found version commit tag. Publishing."
-            echo "publish=true" >> $GITHUB_ENV
+            echo "Package version ($pkgver) is the same as last published NPM version ($npmver), skipping publish."
           else
-            echo "Version commit tag not found. Not publishing."
+            echo "Package version ($pkgver) is different from latest NPM version ($npmver), publishing!"
+            echo "publish=true" >> $GITHUB_ENV
           fi
+
       - name: Publish
         if: env.publish == 'true'
         env:
