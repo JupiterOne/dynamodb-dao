@@ -1,15 +1,12 @@
 {
   "name": "@jupiterone/dynamodb-dao",
-  "version": "1.7.4",
+  "version": "1.7.5",
   "description": "DynamoDB Data Access Object (DAO) helper library",
   "main": "index.js",
   "types": "index.d.ts",
   "repository": "git@github.com:jupiterone/dynamodb-dao.git",
   "author": "JupiterOne <dev@jupiterone.io>",
   "license": "MIT",
-  "engines": {
-    "node": "10.x || 12.x || 14.x"
-  },
   "publishConfig": {
     "access": "public"
   },
