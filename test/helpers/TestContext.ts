@@ -1,7 +1,7 @@
 /* istanbul ignore file */
 
 import { DynamoDB } from 'aws-sdk';
-import { v4 as uuid } from 'uuid';
+import { randomUUID as uuid } from 'crypto';
 import DynamoDbDao, { DynamoDbDaoInput } from '../../src';
 
 const { DYNAMODB_ENDPOINT = 'http://localhost:8000' } = process.env;

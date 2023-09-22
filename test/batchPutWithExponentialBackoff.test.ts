@@ -1,4 +1,4 @@
-import { v4 as uuid } from 'uuid';
+import { randomUUID as uuid } from 'crypto';
 import mockLogger from './helpers/mockLogger';
 import TestContext, { documentClient } from './helpers/TestContext';
 

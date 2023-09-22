@@ -40,7 +40,6 @@
     "@types/uuid": "^8.0.0",
     "aws-sdk": "^2.419.0",
     "lodash.partition": "^4.6.0",
-    "nodemon": "^2.0.7",
-    "uuid": "^8.1.0"
+    "nodemon": "^2.0.7"
   }
 }

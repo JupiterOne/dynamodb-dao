@@ -1,4 +1,4 @@
-import { v4 as uuid } from 'uuid';
+import { randomUUID as uuid } from 'crypto';
 import { CountOutput } from '../src/types';
 import TestContext, { documentClient } from './helpers/TestContext';
 

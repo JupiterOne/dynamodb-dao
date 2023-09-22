@@ -1,6 +1,6 @@
+import { randomUUID as uuid } from 'crypto';
 import chunk from 'lodash.chunk';
 import pMap from 'p-map';
-import { v4 as uuid } from 'uuid';
 import { QueryInputWithLimit } from '../src/types';
 import TestContext, { documentClient } from './helpers/TestContext';
 

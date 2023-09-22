@@ -1,5 +1,5 @@
 import * as AWS from 'aws-sdk';
-import { v4 as uuid } from 'uuid';
+import { randomUUID as uuid } from 'crypto';
 import DynamoDbDao from '.';
 import mockLogger from '../test/helpers/mockLogger';
 import { DEFAULT_QUERY_LIMIT } from './constants';

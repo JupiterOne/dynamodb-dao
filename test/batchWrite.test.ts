@@ -1,5 +1,5 @@
+import { randomUUID as uuid } from 'crypto';
 import partition from 'lodash.partition';
-import { v4 as uuid } from 'uuid';
 import { BatchWriteOperation } from '../src/types';
 import TestContext, {
   DataModel,

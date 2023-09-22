@@ -1,5 +1,5 @@
+import { randomUUID as uuid } from 'crypto';
 import TestContext, { documentClient } from './helpers/TestContext';
-import { v4 as uuid } from 'uuid';
 
 let context: TestContext;
 
