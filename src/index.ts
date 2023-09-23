@@ -87,11 +87,9 @@ export type NumberPropertiesInType<T> = Pick<
   }[keyof T]
 >;
 
-type IncrMap<DataModel> = Partial<
-  {
-    [key in keyof NumberPropertiesInType<DataModel>]: number;
-  }
->;
+type IncrMap<DataModel> = Partial<{
+  [key in keyof NumberPropertiesInType<DataModel>]: number;
+}>;
 
 /**
  * A base dynamodb dao class that enforces types

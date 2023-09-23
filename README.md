@@ -120,7 +120,7 @@ const { total } = await myDocumentDao.incr(
   // The `number` property to increment
   'total',
   // The number to increment by. Defaults to 1.
-  5,
+  5
 );
 
 // `total` will have the value `-5`
@@ -133,7 +133,7 @@ const { total } = await myDocumentDao.decr(
   // The `number` property to increment
   'total',
   // The number to decrement by. Defaults to 1.
-  5,
+  5
 );
 ```
 
@@ -147,9 +147,9 @@ const { extra, total } = await myDocumentDao.multiIncr(
     accountId: 'def',
   },
   {
-    'total': 5,
-    'extra': -1,
-  },
+    total: 5,
+    extra: -1,
+  }
 );
 ```
 
