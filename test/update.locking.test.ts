@@ -1,3 +1,4 @@
+import { GetCommand, PutCommand } from '@aws-sdk/lib-dynamodb';
 import { randomUUID as uuid } from 'crypto';
 import TestContext, { documentClient } from './helpers/TestContext';
 
@@ -23,20 +24,20 @@ beforeEach(async () => {
   };
 
   // put data into dynamodb
-  await documentClient
-    .put({
+  await documentClient.send(
+    new PutCommand({
       TableName: tableName,
       Item: input,
     })
-    .promise();
+  );
 
   // ensure it exists
-  const { Item: storedItem } = await documentClient
-    .get({
+  const { Item: storedItem } = await documentClient.send(
+    new GetCommand({
       TableName: tableName,
       Key: key,
     })
-    .promise();
+  );
 
   // eslint-disable-next-line jest/no-standalone-expect
   expect(storedItem).toEqual(input);
@@ -55,12 +56,12 @@ describe.each([true, false])(
       const updateData = { test: uuid(), newField: uuid() };
       await dao.update(key, updateData);
 
-      const { Item: updatedItem } = await documentClient
-        .get({
+      const { Item: updatedItem } = await documentClient.send(
+        new GetCommand({
           TableName: tableName,
           Key: key,
         })
-        .promise();
+      );
 
       expect(updatedItem).toEqual({
         ...item,
@@ -74,12 +75,12 @@ describe.each([true, false])(
       const updateData = { test: uuid(), newField: uuid(), version: undefined };
       await dao.update(key, updateData);
 
-      const { Item: updatedItem } = await documentClient
-        .get({
+      const { Item: updatedItem } = await documentClient.send(
+        new GetCommand({
           TableName: tableName,
           Key: key,
         })
-        .promise();
+      );
 
       expect(updatedItem).toEqual({
         ...item,
@@ -93,12 +94,12 @@ describe.each([true, false])(
       const updateData = { test: uuid(), newField: uuid(), version: 0 };
       await dao.update(key, updateData);
 
-      const { Item: updatedItem } = await documentClient
-        .get({
+      const { Item: updatedItem } = await documentClient.send(
+        new GetCommand({
           TableName: tableName,
           Key: key,
         })
-        .promise();
+      );
 
       expect(updatedItem).toEqual({
         ...item,
@@ -114,12 +115,12 @@ describe.each([true, false])(
       await dao.update(key, { ...updateData, version: 1 });
       await dao.update(key, { ...updateData, version: 2 });
 
-      const { Item: updatedItem } = await documentClient
-        .get({
+      const { Item: updatedItem } = await documentClient.send(
+        new GetCommand({
           TableName: tableName,
           Key: key,
         })
-        .promise();
+      );
 
       expect(updatedItem).toEqual({
         ...item,
@@ -150,12 +151,12 @@ describe.each([true, false])(
         ignoreOptimisticLocking: true,
       });
 
-      const { Item: updatedItem } = await documentClient
-        .get({
+      const { Item: updatedItem } = await documentClient.send(
+        new GetCommand({
           TableName: tableName,
           Key: key,
         })
-        .promise();
+      );
 
       expect(updatedItem).toEqual({
         ...item,

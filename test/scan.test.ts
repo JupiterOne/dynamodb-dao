@@ -1,3 +1,4 @@
+import { BatchWriteCommand } from '@aws-sdk/lib-dynamodb';
 import { randomUUID as uuid } from 'crypto';
 import TestContext, { documentClient } from './helpers/TestContext';
 
@@ -27,13 +28,13 @@ beforeAll(async () => {
     });
   }
 
-  await documentClient
-    .batchWrite({
+  await documentClient.send(
+    new BatchWriteCommand({
       RequestItems: {
         [context.tableName]: putRequests,
       },
     })
-    .promise();
+  );
 });
 
 afterAll(() => {

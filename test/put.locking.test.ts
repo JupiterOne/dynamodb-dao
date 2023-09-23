@@ -1,3 +1,4 @@
+import { GetCommand } from '@aws-sdk/lib-dynamodb';
 import { randomUUID as uuid } from 'crypto';
 import TestContext, { documentClient } from './helpers/TestContext';
 
@@ -30,12 +31,12 @@ describe.each([true, false])(
       await dao.put(input);
 
       // ensure it exists
-      const { Item: item } = await documentClient
-        .get({
+      const { Item: item } = await documentClient.send(
+        new GetCommand({
           TableName: tableName,
           Key: key,
         })
-        .promise();
+      );
 
       expect(item).toEqual({
         ...input,
@@ -58,12 +59,12 @@ describe.each([true, false])(
       await dao.put(input);
 
       // ensure it exists
-      const { Item: item } = await documentClient
-        .get({
+      const { Item: item } = await documentClient.send(
+        new GetCommand({
           TableName: tableName,
           Key: key,
         })
-        .promise();
+      );
 
       expect(item).toEqual({
         ...input,
@@ -111,12 +112,12 @@ describe.each([true, false])(
         version: 1,
       });
 
-      const { Item: item } = await documentClient
-        .get({
+      const { Item: item } = await documentClient.send(
+        new GetCommand({
           TableName: tableName,
           Key: key,
         })
-        .promise();
+      );
 
       expect(item).toEqual({
         ...input,
@@ -150,12 +151,12 @@ describe.each([true, false])(
       );
 
       // ensure it exists
-      const { Item: item } = await documentClient
-        .get({
+      const { Item: item } = await documentClient.send(
+        new GetCommand({
           TableName: tableName,
           Key: key,
         })
-        .promise();
+      );
 
       expect(item).toEqual({
         ...input,

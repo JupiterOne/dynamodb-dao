@@ -1,3 +1,4 @@
+import { PutCommand } from '@aws-sdk/lib-dynamodb';
 import { randomUUID as uuid } from 'crypto';
 import TestContext, { documentClient } from './helpers/TestContext';
 
@@ -24,12 +25,12 @@ test('should be able to get an item from the table', async () => {
   };
 
   // put data into dynamodb
-  await documentClient
-    .put({
+  await documentClient.send(
+    new PutCommand({
       TableName: tableName,
       Item: input,
     })
-    .promise();
+  );
 
   // put data into dynamodb
   const item = await dao.get(key);
@@ -46,7 +47,9 @@ test('should be able to do a consistent read on a get', async () => {
     test: uuid(),
   };
 
-  await documentClient.put({ TableName: tableName, Item: input }).promise();
+  await documentClient.send(
+    new PutCommand({ TableName: tableName, Item: input })
+  );
 
   const item = await dao.get(key, { consistentRead: true });
   expect(item).toEqual(input);

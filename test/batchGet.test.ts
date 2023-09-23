@@ -1,3 +1,4 @@
+import { BatchWriteCommand } from '@aws-sdk/lib-dynamodb';
 import { randomUUID as uuid } from 'crypto';
 import TestContext, { documentClient, KeySchema } from './helpers/TestContext';
 
@@ -28,8 +29,8 @@ afterAll(() => {
 });
 
 test('should allow for bulk get operations to be performed', async () => {
-  await documentClient
-    .batchWrite({
+  await documentClient.send(
+    new BatchWriteCommand({
       RequestItems: {
         [context.tableName]: items.map((item) => ({
           PutRequest: {
@@ -38,7 +39,7 @@ test('should allow for bulk get operations to be performed', async () => {
         })),
       },
     })
-    .promise();
+  );
 
   const { items: returnedItems } = await context.dao.batchGet(
     items.map((item) => ({ id: item.id }))
@@ -48,17 +49,17 @@ test('should allow for bulk get operations to be performed', async () => {
   expect(returnedItems).toEqual(expect.arrayContaining(items));
 });
 
+//  TODO Fix this test
 test('should return unprocessed keys if there are any', async () => {
-  jest.spyOn(documentClient, 'batchGet').mockReturnValue({
-    promise: () =>
-      Promise.resolve({
-        UnprocessedKeys: {
-          [context.tableName]: {
-            Keys: [{ id: items[0].id }],
-          },
-        },
-      }),
-  } as any);
+  // mockImplementation is needed because mockResolvedValue gives a type error
+  // send has both a callback and promise version
+  jest.spyOn(documentClient, 'send').mockImplementation(() => ({
+    UnprocessedKeys: {
+      [context.tableName]: {
+        Keys: [{ id: items[0].id }],
+      },
+    },
+  }));
 
   const { unprocessedKeys } = await context.dao.batchGet(
     items.map((item) => ({ id: item.id }))

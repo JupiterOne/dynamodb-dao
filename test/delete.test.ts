@@ -1,3 +1,4 @@
+import { GetCommand, PutCommand } from '@aws-sdk/lib-dynamodb';
 import { randomUUID as uuid } from 'crypto';
 import TestContext, { documentClient } from './helpers/TestContext';
 
@@ -24,32 +25,32 @@ test('should be able to delete an item from the table', async () => {
   };
 
   // put data into dynamodb
-  await documentClient
-    .put({
+  await documentClient.send(
+    new PutCommand({
       TableName: tableName,
       Item: input,
     })
-    .promise();
+  );
 
   // ensure it exists
-  const { Item: item } = await documentClient
-    .get({
+  const { Item: item } = await documentClient.send(
+    new GetCommand({
       TableName: tableName,
       Key: key,
     })
-    .promise();
+  );
 
   expect(item).toEqual(input);
 
   await dao.delete(key);
 
   // ensure it deleted
-  const { Item: deletedItem } = await documentClient
-    .get({
+  const { Item: deletedItem } = await documentClient.send(
+    new GetCommand({
       TableName: tableName,
       Key: key,
     })
-    .promise();
+  );
 
   expect(deletedItem).toEqual(undefined);
 });
@@ -63,12 +64,12 @@ test('should allow for a condition expression to be provided', async () => {
   };
 
   // put data into dynamodb
-  await documentClient
-    .put({
+  await documentClient.send(
+    new PutCommand({
       TableName: tableName,
       Item: item,
     })
-    .promise();
+  );
 
   const promise = dao.delete(
     { id: item.id },
@@ -93,12 +94,12 @@ test('should allow for a expression attribute names to be provided', async () =>
   };
 
   // put data into dynamodb
-  await documentClient
-    .put({
+  await documentClient.send(
+    new PutCommand({
       TableName: tableName,
       Item: item,
     })
-    .promise();
+  );
 
   const promise = dao.delete(
     { id: item.id },
