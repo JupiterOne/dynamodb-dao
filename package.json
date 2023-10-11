@@ -14,8 +14,8 @@
     "node": ">= 18.0.0"
   },
   "scripts": {
-    "start:containers": "sudo docker-compose up dynamodb",
-    "stop:containers": "sudo docker-compose down",
+    "start:containers": "docker-compose up dynamodb",
+    "stop:containers": "docker-compose down",
     "lint": "eslint . --cache --fix --ext .ts,.tsx",
     "format": "prettier --write '**/*.{ts,js,json,css,md,yml}'",
     "type-check": "tsc --noEmit",
