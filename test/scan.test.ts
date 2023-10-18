@@ -1,5 +1,6 @@
+import { BatchWriteCommand } from '@aws-sdk/lib-dynamodb';
+import { randomUUID as uuid } from 'crypto';
 import TestContext, { documentClient } from './helpers/TestContext';
-import { v4 as uuid } from 'uuid';
 
 let context: TestContext;
 const items: any[] = [];
@@ -27,13 +28,13 @@ beforeAll(async () => {
     });
   }
 
-  await documentClient
-    .batchWrite({
+  await documentClient.send(
+    new BatchWriteCommand({
       RequestItems: {
         [context.tableName]: putRequests,
       },
     })
-    .promise();
+  );
 });
 
 afterAll(() => {
@@ -107,7 +108,7 @@ test('should allow for filterExpression to be provided', async () => {
 async function runSegmentTillFinished(
   context: TestContext,
   segment: number,
-  totalSegments: number,
+  totalSegments: number
 ): Promise<any[]> {
   const allItems: any[] = [];
   const { dao } = context;

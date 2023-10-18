@@ -1,5 +1,17 @@
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import {
+  BatchGetCommand,
+  BatchWriteCommand,
+  DeleteCommand,
+  DynamoDBDocumentClient,
+  GetCommand,
+  PutCommand,
+  QueryCommand,
+  ScanCommand,
+  UpdateCommand,
+  UpdateCommandInput,
+} from '@aws-sdk/lib-dynamodb';
 import { sleep } from '@lifeomic/attempt';
-import { DocumentClient } from 'aws-sdk/clients/dynamodb';
 import chunk from 'lodash.chunk';
 import pMap from 'p-map';
 import {
@@ -57,7 +69,7 @@ export type DeleteOptions = ConditionalOptions & MutateBehavior;
 
 export interface DynamoDbDaoInput<T> {
   tableName: string;
-  documentClient: DocumentClient;
+  documentClient: DynamoDBClient;
   optimisticLockingAttribute?: keyof NumberPropertiesInType<T>;
   autoInitiateLockingAttribute?: boolean;
 }
@@ -75,24 +87,27 @@ export type NumberPropertiesInType<T> = Pick<
   }[keyof T]
 >;
 
-type IncrMap<DataModel> = Partial<
-  {
-    [key in keyof NumberPropertiesInType<DataModel>]: number;
-  }
->;
+type IncrMap<DataModel> = Partial<{
+  [key in keyof NumberPropertiesInType<DataModel>]: number;
+}>;
 
 /**
  * A base dynamodb dao class that enforces types
  */
-export default class DynamoDbDao<DataModel, KeySchema> {
+export default class DynamoDbDao<
+  // TODO: Should we change this type to what the new input expect
+  DataModel extends Record<string, any>,
+  // TODO: Should we change this type to what the new input expect
+  KeySchema extends Record<string, any>
+> {
   public readonly tableName: string;
-  public readonly documentClient: DocumentClient;
+  public readonly documentClient: DynamoDBDocumentClient;
   public readonly optimisticLockingAttribute?: keyof NumberPropertiesInType<DataModel>;
   public readonly autoInitiateLockingAttribute?: boolean;
 
   constructor(options: DynamoDbDaoInput<DataModel>) {
-    this.tableName = options.tableName;
     this.documentClient = options.documentClient;
+    this.tableName = options.tableName;
     // The prior version implemented auto-initiate, so
     // we'll default to true to retain backward compatibility
     this.autoInitiateLockingAttribute =
@@ -110,14 +125,13 @@ export default class DynamoDbDao<DataModel, KeySchema> {
     options: GetItemOptions = { consistentRead: false }
   ): Promise<DataModel | undefined> {
     const { consistentRead } = options;
-    const { Item: item } = await this.documentClient
-      .get({
-        TableName: this.tableName,
-        Key: key,
-        ConsistentRead: consistentRead,
-      })
-      .promise();
+    const gic = new GetCommand({
+      TableName: this.tableName,
+      Key: key,
+      ConsistentRead: consistentRead,
+    });
 
+    const { Item: item } = await this.documentClient.send(gic);
     return item as DataModel;
   }
 
@@ -143,17 +157,19 @@ export default class DynamoDbDao<DataModel, KeySchema> {
           attributeValues,
         }));
     }
-    const { Attributes: attributes } = await this.documentClient
-      .delete({
-        TableName: this.tableName,
-        Key: key,
-        ReturnValues: 'ALL_OLD',
-        ConditionExpression: conditionExpression,
-        ExpressionAttributeNames: attributeNames,
-        ExpressionAttributeValues: attributeValues,
-      })
-      .promise();
 
+    const deleteCommand = new DeleteCommand({
+      TableName: this.tableName,
+      Key: key,
+      ReturnValues: 'ALL_OLD',
+      ConditionExpression: conditionExpression,
+      ExpressionAttributeNames: attributeNames,
+      ExpressionAttributeValues: attributeValues,
+    });
+
+    const { Attributes: attributes } = await this.documentClient.send(
+      deleteCommand
+    );
     return attributes as DataModel;
   }
 
@@ -188,15 +204,15 @@ export default class DynamoDbDao<DataModel, KeySchema> {
       }
     }
 
-    await this.documentClient
-      .put({
-        TableName: this.tableName,
-        Item: data,
-        ConditionExpression: conditionExpression,
-        ExpressionAttributeNames: attributeNames,
-        ExpressionAttributeValues: attributeValues,
-      })
-      .promise();
+    const putCommand = new PutCommand({
+      TableName: this.tableName,
+      Item: data,
+      ConditionExpression: conditionExpression,
+      ExpressionAttributeNames: attributeNames,
+      ExpressionAttributeValues: attributeValues,
+    });
+
+    await this.documentClient.send(putCommand);
     return data;
   }
 
@@ -219,9 +235,8 @@ export default class DynamoDbDao<DataModel, KeySchema> {
       autoInitiateLockingAttribute: this.autoInitiateLockingAttribute,
     });
 
-    const { Attributes: attributes } = await this.documentClient
-      .update(params)
-      .promise();
+    const uic = new UpdateCommand(params);
+    const { Attributes: attributes } = await this.documentClient.send(uic);
 
     return attributes as DataModel;
   }
@@ -267,7 +282,7 @@ export default class DynamoDbDao<DataModel, KeySchema> {
       );
     }
 
-    const updateParams: DocumentClient.UpdateItemInput = {
+    const updateParams: UpdateCommandInput = {
       TableName: this.tableName,
       Key: key,
       UpdateExpression: 'SET',
@@ -290,9 +305,10 @@ export default class DynamoDbDao<DataModel, KeySchema> {
       updateParams.ExpressionAttributeValues![valueName] = value;
     });
 
-    const { Attributes: attributes } = await this.documentClient
-      .update(updateParams)
-      .promise();
+    const updateCommand = new UpdateCommand(updateParams);
+    const { Attributes: attributes } = await this.documentClient.send(
+      updateCommand
+    );
 
     return attributes as DataModel;
   }
@@ -317,19 +333,19 @@ export default class DynamoDbDao<DataModel, KeySchema> {
       startKey = decodeExclusiveStartKey<KeySchema>(startAt);
     }
 
-    const result = await this.documentClient
-      .query({
-        TableName: this.tableName,
-        IndexName: index,
-        KeyConditionExpression: keyConditionExpression,
-        FilterExpression: filterExpression,
-        ExpressionAttributeValues: attributeValues,
-        ExpressionAttributeNames: attributeNames,
-        ExclusiveStartKey: startKey,
-        Limit: limit,
-        Select: 'COUNT',
-      })
-      .promise();
+    const queryCommand = new QueryCommand({
+      TableName: this.tableName,
+      IndexName: index,
+      KeyConditionExpression: keyConditionExpression,
+      FilterExpression: filterExpression,
+      ExpressionAttributeValues: attributeValues,
+      ExpressionAttributeNames: attributeNames,
+      ExclusiveStartKey: startKey,
+      Limit: limit,
+      Select: 'COUNT',
+    });
+
+    const result = await this.documentClient.send(queryCommand);
 
     return {
       count: result.Count,
@@ -364,21 +380,20 @@ export default class DynamoDbDao<DataModel, KeySchema> {
       startKey = decodeExclusiveStartKey<KeySchema>(startAt);
     }
 
-    const result = await this.documentClient
-      .query({
-        TableName: this.tableName,
-        IndexName: index,
-        Limit: limit,
-        ScanIndexForward: scanIndexForward,
-        ExclusiveStartKey: startKey,
-        KeyConditionExpression: keyConditionExpression,
-        FilterExpression: filterExpression,
-        ExpressionAttributeNames: attributeNames,
-        ExpressionAttributeValues: attributeValues,
-        ConsistentRead: consistentRead,
-      })
-      .promise();
+    const queryCommand = new QueryCommand({
+      TableName: this.tableName,
+      IndexName: index,
+      Limit: limit,
+      ScanIndexForward: scanIndexForward,
+      ExclusiveStartKey: startKey,
+      KeyConditionExpression: keyConditionExpression,
+      FilterExpression: filterExpression,
+      ExpressionAttributeNames: attributeNames,
+      ExpressionAttributeValues: attributeValues,
+      ConsistentRead: consistentRead,
+    });
 
+    const result = await this.documentClient.send(queryCommand);
     return {
       items: result.Items as DataModel[],
       lastKey: result.LastEvaluatedKey
@@ -503,21 +518,20 @@ export default class DynamoDbDao<DataModel, KeySchema> {
       startKey = decodeExclusiveStartKey<KeySchema>(startAt);
     }
 
-    const result = await this.documentClient
-      .scan({
-        TableName: this.tableName,
-        IndexName: index,
-        Limit: limit,
-        ExclusiveStartKey: startKey,
-        FilterExpression: filterExpression,
-        ExpressionAttributeNames: attributeNames,
-        ExpressionAttributeValues: attributeValues,
-        Segment: segment,
-        TotalSegments: totalSegments,
-        ConsistentRead: consistentRead,
-      })
-      .promise();
+    const scanCommand = new ScanCommand({
+      TableName: this.tableName,
+      IndexName: index,
+      Limit: limit,
+      ExclusiveStartKey: startKey,
+      FilterExpression: filterExpression,
+      ExpressionAttributeNames: attributeNames,
+      ExpressionAttributeValues: attributeValues,
+      Segment: segment,
+      TotalSegments: totalSegments,
+      ConsistentRead: consistentRead,
+    });
 
+    const result = await this.documentClient.send(scanCommand);
     return {
       items: result.Items as DataModel[],
       lastKey: result.LastEvaluatedKey
@@ -537,28 +551,27 @@ export default class DynamoDbDao<DataModel, KeySchema> {
       );
     }
 
-    const result = await this.documentClient
-      .batchWrite({
-        RequestItems: {
-          [this.tableName]: operations.map((operation) => {
-            if (isBatchPutOperation(operation)) {
-              return {
-                PutRequest: {
-                  Item: operation.put,
-                },
-              };
-            } else {
-              return {
-                DeleteRequest: {
-                  Key: operation.delete,
-                },
-              };
-            }
-          }),
-        },
-      })
-      .promise();
+    const bwic = new BatchWriteCommand({
+      RequestItems: {
+        [this.tableName]: operations.map((operation) => {
+          if (isBatchPutOperation(operation)) {
+            return {
+              PutRequest: {
+                Item: operation.put,
+              },
+            };
+          } else {
+            return {
+              DeleteRequest: {
+                Key: operation.delete,
+              },
+            };
+          }
+        }),
+      },
+    });
 
+    const result = await this.documentClient.send(bwic);
     const unprocessedItems =
       result.UnprocessedItems && result.UnprocessedItems[this.tableName];
 
@@ -588,15 +601,14 @@ export default class DynamoDbDao<DataModel, KeySchema> {
       );
     }
 
-    const result = await this.documentClient
-      .batchGet({
-        RequestItems: {
-          [this.tableName]: {
-            Keys: keys,
-          },
+    const batchGetCommand = new BatchGetCommand({
+      RequestItems: {
+        [this.tableName]: {
+          Keys: keys,
         },
-      })
-      .promise();
+      },
+    });
+    const result = await this.documentClient.send(batchGetCommand);
 
     const items = result.Responses && result.Responses[this.tableName];
     const unprocessedKeys =

@@ -1,18 +1,31 @@
-import * as AWS from 'aws-sdk';
-import { v4 as uuid } from 'uuid';
-import DynamoDbDao from '.';
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import {
+  BatchWriteCommand,
+  DeleteCommand,
+  DynamoDBDocumentClient,
+  GetCommand,
+  PutCommand,
+  QueryCommand,
+  ScanCommand,
+  UpdateCommand,
+} from '@aws-sdk/lib-dynamodb';
+import { mockClient } from 'aws-sdk-client-mock';
+import { randomUUID as uuid } from 'crypto';
+import DynamoDbDao, { CountOutput, DEFAULT_QUERY_LIMIT } from '.';
 import mockLogger from '../test/helpers/mockLogger';
-import { DEFAULT_QUERY_LIMIT } from './constants';
-import { CountOutput } from './types';
 import { generateUpdateParams } from './update/generateUpdateParams';
 
-const dynamodb = new AWS.DynamoDB({
-  apiVersion: '2012-08-10',
+const ddbClient = new DynamoDBClient({
   endpoint: process.env.DYNAMODB_ENDPOINT,
+  apiVersion: '2012-08-10',
 });
 
-const documentClient = new AWS.DynamoDB.DocumentClient({
-  service: dynamodb,
+const documentClient = DynamoDBDocumentClient.from(ddbClient);
+
+const mockedDocumentClient = mockClient(documentClient);
+
+beforeEach(() => {
+  mockedDocumentClient.reset();
 });
 
 interface TestModel {
@@ -33,7 +46,7 @@ const tableName = 'test-table';
 
 const testDao = new DynamoDbDao<TestModel, KeySchema>({
   tableName,
-  documentClient,
+  documentClient: mockedDocumentClient as unknown as DynamoDBClient,
 });
 
 afterEach(() => {
@@ -48,18 +61,21 @@ test(`#get should pass in the table name and key as input \
 and return the result item`, async () => {
   const key = { id: uuid() };
 
-  jest.spyOn(documentClient, 'get').mockReturnValue({
-    promise: () => Promise.resolve({ Item: testModelInstance }),
-  } as any);
+  mockedDocumentClient.on(GetCommand).resolves({ Item: testModelInstance });
 
   const result = await testDao.get(key);
 
-  expect(documentClient.get).toHaveBeenCalledWith({
-    TableName: tableName,
-    Key: key,
-    ConsistentRead: false,
-  });
-
+  expect(mockedDocumentClient.calls()).toHaveLength(1);
+  expect(mockedDocumentClient.call(0).args).toHaveLength(1);
+  expect(JSON.stringify(mockedDocumentClient.call(0).firstArg)).toEqual(
+    JSON.stringify(
+      new GetCommand({
+        TableName: tableName,
+        Key: key,
+        ConsistentRead: false,
+      })
+    )
+  );
   expect(result).toEqual(testModelInstance);
 });
 
@@ -67,51 +83,62 @@ test(`#get should pass the consistentRead option if supplied \
 and return the result item`, async () => {
   const key = { id: uuid() };
 
-  jest.spyOn(documentClient, 'get').mockReturnValue({
-    promise: () => Promise.resolve({ Item: testModelInstance }),
-  } as any);
+  mockedDocumentClient.on(GetCommand).resolves({ Item: testModelInstance });
 
   const result = await testDao.get(key, { consistentRead: true });
 
-  expect(documentClient.get).toHaveBeenCalledWith({
-    TableName: tableName,
-    Key: key,
-    ConsistentRead: true,
-  });
+  expect(mockedDocumentClient.calls()).toHaveLength(1);
+  expect(mockedDocumentClient.call(0).args).toHaveLength(1);
+  expect(JSON.stringify(mockedDocumentClient.call(0).firstArg)).toEqual(
+    JSON.stringify(
+      new GetCommand({
+        TableName: tableName,
+        Key: key,
+        ConsistentRead: true,
+      })
+    )
+  );
 
   expect(result).toEqual(testModelInstance);
 });
 
 test(`#put should pass in the table name and data as input \
 and return the result item`, async () => {
-  jest.spyOn(documentClient, 'put').mockReturnValue({
-    promise: () => Promise.resolve({}),
-  } as any);
-
   const result = await testDao.put(testModelInstance);
 
-  expect(documentClient.put).toHaveBeenCalledWith({
-    TableName: tableName,
-    Item: testModelInstance,
-  });
-
+  expect(mockedDocumentClient.calls()).toHaveLength(1);
+  expect(mockedDocumentClient.call(0).args).toHaveLength(1);
+  expect(JSON.stringify(mockedDocumentClient.call(0).firstArg)).toEqual(
+    JSON.stringify(
+      new PutCommand({
+        TableName: tableName,
+        Item: testModelInstance,
+      })
+    )
+  );
   expect(result).toEqual(testModelInstance);
 });
 
 test(`#delete should return pass in the table name, key, \
 and return the old attributes`, async () => {
-  jest.spyOn(documentClient, 'delete').mockReturnValue({
-    promise: () => Promise.resolve({ Attributes: testModelInstance }),
-  } as any);
+  mockedDocumentClient
+    .on(DeleteCommand)
+    .resolves({ Attributes: testModelInstance });
 
   const key = { id: testModelInstance.id };
   const result = await testDao.delete(key);
 
-  expect(documentClient.delete).toHaveBeenCalledWith({
-    TableName: tableName,
-    Key: key,
-    ReturnValues: 'ALL_OLD',
-  });
+  expect(mockedDocumentClient.calls()).toHaveLength(1);
+  expect(mockedDocumentClient.call(0).args).toHaveLength(1);
+  expect(JSON.stringify(mockedDocumentClient.call(0).firstArg)).toEqual(
+    JSON.stringify(
+      new DeleteCommand({
+        TableName: tableName,
+        Key: key,
+        ReturnValues: 'ALL_OLD',
+      })
+    )
+  );
 
   expect(result).toEqual(testModelInstance);
 });
@@ -124,13 +151,10 @@ keyConditionExpression, and attributeValues`, async () => {
   const index = uuid();
   const limit = 50;
 
-  jest.spyOn(documentClient, 'query').mockReturnValue({
-    promise: () =>
-      Promise.resolve({
-        Items: [testModelInstance],
-        LastEvaluatedKey: lastEvaluatedKey,
-      }),
-  } as any);
+  mockedDocumentClient.on(QueryCommand).resolves({
+    Items: [testModelInstance],
+    LastEvaluatedKey: lastEvaluatedKey,
+  });
 
   const result = await testDao.query({
     index,
@@ -139,14 +163,20 @@ keyConditionExpression, and attributeValues`, async () => {
     keyConditionExpression,
   });
 
-  expect(documentClient.query).toHaveBeenCalledWith({
-    TableName: tableName,
-    IndexName: index,
-    Limit: limit,
-    ExclusiveStartKey: undefined,
-    KeyConditionExpression: keyConditionExpression,
-    ExpressionAttributeValues: attributeValues,
-  });
+  expect(mockedDocumentClient.calls()).toHaveLength(1);
+  expect(mockedDocumentClient.call(0).args).toHaveLength(1);
+  expect(JSON.stringify(mockedDocumentClient.call(0).firstArg)).toEqual(
+    JSON.stringify(
+      new QueryCommand({
+        TableName: tableName,
+        IndexName: index,
+        Limit: limit,
+        ExclusiveStartKey: undefined,
+        KeyConditionExpression: keyConditionExpression,
+        ExpressionAttributeValues: attributeValues,
+      })
+    )
+  );
 
   expect(result).toEqual({
     items: [testModelInstance],
@@ -161,15 +191,12 @@ test('#query should allow consistent reads', async () => {
   const index = uuid();
   const limit = 50;
 
-  jest.spyOn(documentClient, 'query').mockReturnValue({
-    promise: () =>
-      Promise.resolve({
-        Items: [testModelInstance],
-        LastEvaluatedKey: lastEvaluatedKey,
-      }),
-  } as any);
+  mockedDocumentClient.on(QueryCommand).resolves({
+    Items: [testModelInstance],
+    LastEvaluatedKey: lastEvaluatedKey,
+  });
 
-  await testDao.query({
+  const result = await testDao.query({
     index,
     limit,
     attributeValues,
@@ -177,14 +204,25 @@ test('#query should allow consistent reads', async () => {
     consistentRead: true,
   });
 
-  expect(documentClient.query).toHaveBeenCalledWith({
-    TableName: tableName,
-    IndexName: index,
-    Limit: limit,
-    ExclusiveStartKey: undefined,
-    KeyConditionExpression: keyConditionExpression,
-    ExpressionAttributeValues: attributeValues,
-    ConsistentRead: true,
+  expect(mockedDocumentClient.calls()).toHaveLength(1);
+  expect(mockedDocumentClient.call(0).args).toHaveLength(1);
+  expect(JSON.stringify(mockedDocumentClient.call(0).firstArg)).toEqual(
+    JSON.stringify(
+      new QueryCommand({
+        TableName: tableName,
+        IndexName: index,
+        Limit: limit,
+        ExclusiveStartKey: undefined,
+        KeyConditionExpression: keyConditionExpression,
+        ExpressionAttributeValues: attributeValues,
+        ConsistentRead: true,
+      })
+    )
+  );
+
+  expect(result).toEqual({
+    items: [testModelInstance],
+    lastKey: Buffer.from(JSON.stringify(lastEvaluatedKey)).toString('base64'),
   });
 });
 
@@ -194,27 +232,35 @@ test(`#query should have default query limit`, async () => {
   const attributeValues = { id: uuid() };
   const index = uuid();
 
-  jest.spyOn(documentClient, 'query').mockReturnValue({
-    promise: () =>
-      Promise.resolve({
-        Items: [testModelInstance],
-        LastEvaluatedKey: lastEvaluatedKey,
-      }),
-  } as any);
+  mockedDocumentClient.on(QueryCommand).resolves({
+    Items: [testModelInstance],
+    LastEvaluatedKey: lastEvaluatedKey,
+  });
 
-  await testDao.query({
+  const result = await testDao.query({
     index,
     attributeValues,
     keyConditionExpression,
   });
 
-  expect(documentClient.query).toHaveBeenCalledWith({
-    TableName: tableName,
-    IndexName: index,
-    Limit: DEFAULT_QUERY_LIMIT,
-    ExclusiveStartKey: undefined,
-    KeyConditionExpression: keyConditionExpression,
-    ExpressionAttributeValues: attributeValues,
+  expect(mockedDocumentClient.calls()).toHaveLength(1);
+  expect(mockedDocumentClient.call(0).args).toHaveLength(1);
+  expect(JSON.stringify(mockedDocumentClient.call(0).firstArg)).toEqual(
+    JSON.stringify(
+      new QueryCommand({
+        TableName: tableName,
+        IndexName: index,
+        Limit: DEFAULT_QUERY_LIMIT,
+        ExclusiveStartKey: undefined,
+        KeyConditionExpression: keyConditionExpression,
+        ExpressionAttributeValues: attributeValues,
+      })
+    )
+  );
+
+  expect(result).toEqual({
+    items: [testModelInstance],
+    lastKey: Buffer.from(JSON.stringify(lastEvaluatedKey)).toString('base64'),
   });
 });
 
@@ -224,13 +270,10 @@ test(`#count should be supported`, async () => {
   const index = uuid();
   const mockCount = 5;
 
-  jest.spyOn(documentClient, 'query').mockReturnValue({
-    promise: () =>
-      Promise.resolve({
-        Count: mockCount,
-        ScannedCount: mockCount,
-      }),
-  } as any);
+  mockedDocumentClient.on(QueryCommand).resolves({
+    Count: mockCount,
+    ScannedCount: mockCount,
+  });
 
   const result = await testDao.count({
     index,
@@ -238,13 +281,19 @@ test(`#count should be supported`, async () => {
     keyConditionExpression,
   });
 
-  expect(documentClient.query).toHaveBeenCalledWith({
-    TableName: tableName,
-    IndexName: index,
-    KeyConditionExpression: keyConditionExpression,
-    ExpressionAttributeValues: attributeValues,
-    Select: 'COUNT',
-  });
+  expect(mockedDocumentClient.calls()).toHaveLength(1);
+  expect(mockedDocumentClient.call(0).args).toHaveLength(1);
+  expect(JSON.stringify(mockedDocumentClient.call(0).firstArg)).toEqual(
+    JSON.stringify(
+      new QueryCommand({
+        TableName: tableName,
+        IndexName: index,
+        KeyConditionExpression: keyConditionExpression,
+        ExpressionAttributeValues: attributeValues,
+        Select: 'COUNT',
+      })
+    )
+  );
 
   const countOutput: CountOutput = {
     count: mockCount,
@@ -261,13 +310,10 @@ test(`#count should properly decode the input start key`, async () => {
   const mockCount = 5;
   const index = uuid();
 
-  jest.spyOn(documentClient, 'query').mockReturnValue({
-    promise: () =>
-      Promise.resolve({
-        Count: mockCount,
-        ScannedCount: mockCount,
-      }),
-  } as any);
+  mockedDocumentClient.on(QueryCommand).resolves({
+    Count: mockCount,
+    ScannedCount: mockCount,
+  });
 
   const exclusiveStartKey = { id: uuid() };
   const startAt = Buffer.from(JSON.stringify(exclusiveStartKey)).toString(
@@ -281,14 +327,20 @@ test(`#count should properly decode the input start key`, async () => {
     keyConditionExpression,
   });
 
-  expect(documentClient.query).toHaveBeenCalledWith({
-    TableName: tableName,
-    IndexName: index,
-    KeyConditionExpression: keyConditionExpression,
-    ExpressionAttributeValues: attributeValues,
-    ExclusiveStartKey: exclusiveStartKey,
-    Select: 'COUNT',
-  });
+  expect(mockedDocumentClient.calls()).toHaveLength(1);
+  expect(mockedDocumentClient.call(0).args).toHaveLength(1);
+  expect(JSON.stringify(mockedDocumentClient.call(0).firstArg)).toEqual(
+    JSON.stringify(
+      new QueryCommand({
+        TableName: tableName,
+        IndexName: index,
+        KeyConditionExpression: keyConditionExpression,
+        ExpressionAttributeValues: attributeValues,
+        ExclusiveStartKey: exclusiveStartKey,
+        Select: 'COUNT',
+      })
+    )
+  );
 
   const countOutput: CountOutput = {
     count: mockCount,
@@ -303,17 +355,14 @@ test(`#count should allow returning encoded exclusive start key`, async () => {
   const keyConditionExpression = 'id = :id';
   const attributeValues = { id: uuid() };
   const index = uuid();
-  const lastEvaluatedKey = uuid();
+  const lastEvaluatedKey = { id: uuid() };
   const mockCount = 5;
 
-  jest.spyOn(documentClient, 'query').mockReturnValue({
-    promise: () =>
-      Promise.resolve({
-        Count: mockCount,
-        ScannedCount: mockCount,
-        LastEvaluatedKey: lastEvaluatedKey,
-      }),
-  } as any);
+  mockedDocumentClient.on(QueryCommand).resolves({
+    Count: mockCount,
+    ScannedCount: mockCount,
+    LastEvaluatedKey: lastEvaluatedKey,
+  });
 
   const result = await testDao.count({
     index,
@@ -321,13 +370,19 @@ test(`#count should allow returning encoded exclusive start key`, async () => {
     keyConditionExpression,
   });
 
-  expect(documentClient.query).toHaveBeenCalledWith({
-    TableName: tableName,
-    IndexName: index,
-    KeyConditionExpression: keyConditionExpression,
-    ExpressionAttributeValues: attributeValues,
-    Select: 'COUNT',
-  });
+  expect(mockedDocumentClient.calls()).toHaveLength(1);
+  expect(mockedDocumentClient.call(0).args).toHaveLength(1);
+  expect(JSON.stringify(mockedDocumentClient.call(0).firstArg)).toEqual(
+    JSON.stringify(
+      new QueryCommand({
+        TableName: tableName,
+        IndexName: index,
+        KeyConditionExpression: keyConditionExpression,
+        ExpressionAttributeValues: attributeValues,
+        Select: 'COUNT',
+      })
+    )
+  );
 
   const countOutput: CountOutput = {
     count: mockCount,
@@ -344,13 +399,10 @@ test(`#query should properly decode the input start key`, async () => {
   const index = uuid();
   const limit = 50;
 
-  jest.spyOn(documentClient, 'query').mockReturnValue({
-    promise: () =>
-      Promise.resolve({
-        Items: [],
-        LastEvaluatedKey: undefined,
-      }),
-  } as any);
+  mockedDocumentClient.on(QueryCommand).resolves({
+    Items: [],
+    LastEvaluatedKey: undefined,
+  });
 
   const exclusiveStartKey = { id: uuid() };
   const startAt = Buffer.from(JSON.stringify(exclusiveStartKey)).toString(
@@ -365,14 +417,20 @@ test(`#query should properly decode the input start key`, async () => {
     keyConditionExpression,
   });
 
-  expect(documentClient.query).toHaveBeenCalledWith({
-    TableName: tableName,
-    IndexName: index,
-    Limit: limit,
-    ExclusiveStartKey: exclusiveStartKey,
-    KeyConditionExpression: keyConditionExpression,
-    ExpressionAttributeValues: attributeValues,
-  });
+  expect(mockedDocumentClient.calls()).toHaveLength(1);
+  expect(mockedDocumentClient.call(0).args).toHaveLength(1);
+  expect(JSON.stringify(mockedDocumentClient.call(0).firstArg)).toEqual(
+    JSON.stringify(
+      new QueryCommand({
+        TableName: tableName,
+        IndexName: index,
+        Limit: limit,
+        ExclusiveStartKey: exclusiveStartKey,
+        KeyConditionExpression: keyConditionExpression,
+        ExpressionAttributeValues: attributeValues,
+      })
+    )
+  );
 });
 
 test(`#query should throw error for invalid exclusiveStartKey`, async () => {
@@ -381,13 +439,10 @@ test(`#query should throw error for invalid exclusiveStartKey`, async () => {
   const index = uuid();
   const limit = 50;
 
-  jest.spyOn(documentClient, 'query').mockReturnValue({
-    promise: () =>
-      Promise.resolve({
-        Items: [],
-        LastEvaluatedKey: undefined,
-      }),
-  } as any);
+  mockedDocumentClient.on(QueryCommand).resolves({
+    Items: [],
+    LastEvaluatedKey: undefined,
+  });
 
   const startAt = 'blah blah blah';
 
@@ -417,12 +472,9 @@ test(`#update should be supported`, async () => {
     data,
   });
 
-  jest.spyOn(documentClient, 'update').mockReturnValue({
-    promise: () =>
-      Promise.resolve({
-        Attributes: data,
-      }),
-  } as any);
+  mockedDocumentClient.on(UpdateCommand).resolves({
+    Attributes: data,
+  });
 
   const result = await testDao.update(
     {
@@ -431,7 +483,11 @@ test(`#update should be supported`, async () => {
     data
   );
 
-  expect(documentClient.update).toHaveBeenCalledWith(updateParams);
+  expect(mockedDocumentClient.calls()).toHaveLength(1);
+  expect(mockedDocumentClient.call(0).args).toHaveLength(1);
+  expect(JSON.stringify(mockedDocumentClient.call(0).firstArg)).toEqual(
+    JSON.stringify(new UpdateCommand(updateParams))
+  );
   expect(result).toEqual(data);
 });
 
@@ -460,33 +516,33 @@ test(`#queryUntilLimitReached should call #query if "filterExpression" not provi
 });
 
 test('#scan should allow consistent reads', async () => {
-  jest.spyOn(documentClient, 'scan').mockReturnValue({
-    promise: () =>
-      Promise.resolve({
-        Items: [],
-        LastEvaluatedKey: undefined,
-      }),
-  } as any);
+  mockedDocumentClient.on(ScanCommand).resolves({
+    Items: [],
+    LastEvaluatedKey: undefined,
+  });
 
   await testDao.scan({
     consistentRead: true,
   });
 
-  expect(documentClient.scan).toHaveBeenCalledWith({
-    ConsistentRead: true,
-    Limit: 50,
-    TableName: tableName,
-  });
+  expect(mockedDocumentClient.calls()).toHaveLength(1);
+  expect(mockedDocumentClient.call(0).args).toHaveLength(1);
+  expect(JSON.stringify(mockedDocumentClient.call(0).firstArg)).toEqual(
+    JSON.stringify(
+      new ScanCommand({
+        TableName: tableName,
+        Limit: 50,
+        ConsistentRead: true,
+      })
+    )
+  );
 });
 
 test('#scan should error if segment is provided but totalSegments is not', async () => {
-  jest.spyOn(documentClient, 'scan').mockReturnValue({
-    promise: () =>
-      Promise.resolve({
-        Items: [],
-        LastEvaluatedKey: undefined,
-      }),
-  } as any);
+  mockedDocumentClient.on(ScanCommand).resolves({
+    Items: [],
+    LastEvaluatedKey: undefined,
+  });
 
   await expect(
     testDao.scan({
@@ -498,13 +554,10 @@ test('#scan should error if segment is provided but totalSegments is not', async
 });
 
 test('#scan should error if totalSegments is provided but segment is not', async () => {
-  jest.spyOn(documentClient, 'scan').mockReturnValue({
-    promise: () =>
-      Promise.resolve({
-        Items: [],
-        LastEvaluatedKey: undefined,
-      }),
-  } as any);
+  mockedDocumentClient.on(ScanCommand).resolves({
+    Items: [],
+    LastEvaluatedKey: undefined,
+  });
 
   await expect(
     testDao.scan({
@@ -516,11 +569,7 @@ test('#scan should error if totalSegments is provided but segment is not', async
 });
 
 test('#batchWriteWithExponentialBackoff should error when a batchWrite fails', async () => {
-  jest.spyOn(documentClient, 'batchWrite').mockReturnValue({
-    promise: () => {
-      return Promise.reject(new Error('you failed!'));
-    },
-  } as any);
+  mockedDocumentClient.on(BatchWriteCommand).rejects(new Error('you failed!'));
 
   await expect(
     testDao.batchPutWithExponentialBackoff({
@@ -531,24 +580,18 @@ test('#batchWriteWithExponentialBackoff should error when a batchWrite fails', a
 });
 
 test('#batchWriteWithExponentialBackoff should retry unprocessed items', async () => {
-  const batchWriteSpy = jest
-    .spyOn(documentClient, 'batchWrite')
-    .mockReturnValueOnce({
-      promise: () =>
-        Promise.resolve({
-          UnprocessedItems: {
-            [tableName]: [testModelInstance, testModelInstance],
-          },
-        }),
-    } as any)
-    .mockReturnValue({
-      promise: () =>
-        Promise.resolve({
-          UnprocessedItems: {
-            [tableName]: [],
-          },
-        }),
-    } as any);
+  mockedDocumentClient
+    .on(BatchWriteCommand)
+    .resolvesOnce({
+      UnprocessedItems: {
+        [tableName]: [testModelInstance, testModelInstance],
+      },
+    })
+    .resolvesOnce({
+      UnprocessedItems: {
+        [tableName]: [],
+      },
+    });
 
   const result = await testDao.batchPutWithExponentialBackoff({
     logger: mockLogger,
@@ -556,21 +599,17 @@ test('#batchWriteWithExponentialBackoff should retry unprocessed items', async (
   });
 
   expect(result).toBeUndefined();
-  expect(batchWriteSpy).toHaveBeenCalledTimes(2);
+  expect(mockedDocumentClient.commandCalls(BatchWriteCommand)).toHaveLength(2);
 });
 
 test('#batchWriteWithExponentialBackoff should stop retrying after hitting max attempts', async () => {
   jest.setTimeout(15000);
-  const batchWriteSpy = jest
-    .spyOn(documentClient, 'batchWrite')
-    .mockReturnValue({
-      promise: () =>
-        Promise.resolve({
-          UnprocessedItems: {
-            [tableName]: [testModelInstance, testModelInstance],
-          },
-        }),
-    } as any);
+
+  mockedDocumentClient.on(BatchWriteCommand).resolves({
+    UnprocessedItems: {
+      [tableName]: [testModelInstance, testModelInstance],
+    },
+  });
 
   await expect(
     testDao.batchPutWithExponentialBackoff({
@@ -581,21 +620,17 @@ test('#batchWriteWithExponentialBackoff should stop retrying after hitting max a
   ).rejects.toThrowError();
 
   // original request, plus two retries 3 retries (it's 0 based)
-  expect(batchWriteSpy).toHaveBeenCalledTimes(4);
+  expect(mockedDocumentClient.commandCalls(BatchWriteCommand)).toHaveLength(4);
 });
 
 test('#batchWriteWithExponentialBackoff should respect the batchWriteLimit', async () => {
   jest.setTimeout(15000);
-  const batchWriteSpy = jest
-    .spyOn(documentClient, 'batchWrite')
-    .mockReturnValue({
-      promise: () =>
-        Promise.resolve({
-          UnprocessedItems: {
-            [tableName]: [],
-          },
-        }),
-    } as any);
+
+  mockedDocumentClient.on(BatchWriteCommand).resolves({
+    UnprocessedItems: {
+      [tableName]: [],
+    },
+  });
 
   const result = await testDao.batchPutWithExponentialBackoff({
     logger: mockLogger,
@@ -605,21 +640,18 @@ test('#batchWriteWithExponentialBackoff should respect the batchWriteLimit', asy
 
   expect(result).toBeUndefined();
   // should result in 3 batches of 1
-  expect(batchWriteSpy).toHaveBeenCalledTimes(3);
+  //
+  expect(mockedDocumentClient.commandCalls(BatchWriteCommand)).toHaveLength(3);
 });
 
 test('#batchWriteWithExponentialBackoff should return if no items are supplied', async () => {
   jest.setTimeout(15000);
-  const batchWriteSpy = jest
-    .spyOn(documentClient, 'batchWrite')
-    .mockReturnValue({
-      promise: () =>
-        Promise.resolve({
-          UnprocessedItems: {
-            [tableName]: [],
-          },
-        }),
-    } as any);
+
+  mockedDocumentClient.on(BatchWriteCommand).resolves({
+    UnprocessedItems: {
+      [tableName]: [],
+    },
+  });
 
   const result = await testDao.batchPutWithExponentialBackoff({
     logger: mockLogger,
@@ -628,7 +660,7 @@ test('#batchWriteWithExponentialBackoff should return if no items are supplied',
   });
 
   expect(result).toBeUndefined();
-  expect(batchWriteSpy).toHaveBeenCalledTimes(0);
+  expect(mockedDocumentClient.commandCalls(BatchWriteCommand)).toHaveLength(0);
   expect(mockLogger.info).toHaveBeenCalledWith(
     expect.anything(),
     expect.stringMatching(/Nothing to batch put/)

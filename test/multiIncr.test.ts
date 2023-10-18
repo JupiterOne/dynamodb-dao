@@ -1,4 +1,4 @@
-import { v4 as uuid } from 'uuid';
+import { randomUUID as uuid } from 'crypto';
 import TestContext, { DataModel, KeySchema } from './helpers/TestContext';
 
 let context: TestContext;

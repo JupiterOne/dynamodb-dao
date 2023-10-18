@@ -1,5 +1,6 @@
+import { GetCommand, PutCommand } from '@aws-sdk/lib-dynamodb';
+import { randomUUID as uuid } from 'crypto';
 import TestContext, { documentClient } from './helpers/TestContext';
-import { v4 as uuid } from 'uuid';
 
 let context: TestContext;
 
@@ -27,12 +28,12 @@ test('should be able to put an item into dynamodb', async () => {
   await dao.put(input);
 
   // ensure it exists
-  const { Item: item } = await documentClient
-    .get({
+  const { Item: item } = await documentClient.send(
+    new GetCommand({
       TableName: tableName,
       Key: key,
     })
-    .promise();
+  );
 
   expect(item).toEqual(input);
 });
@@ -46,12 +47,12 @@ test('should allow for a condition expression to be provided', async () => {
   };
 
   // put data into dynamodb
-  await documentClient
-    .put({
+  await documentClient.send(
+    new PutCommand({
       TableName: tableName,
       Item: item,
     })
-    .promise();
+  );
 
   const promise = dao.put(item, {
     // this will cause a failure, because the condition won't match
@@ -70,12 +71,12 @@ test('should allow for a expression attribute names to be provided', async () =>
   };
 
   // put data into dynamodb
-  await documentClient
-    .put({
+  await documentClient.send(
+    new PutCommand({
       TableName: tableName,
       Item: item,
     })
-    .promise();
+  );
 
   const promise = dao.put(item, {
     // this will cause a failure, because the condition won't match

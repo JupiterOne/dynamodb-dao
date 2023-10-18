@@ -8,6 +8,14 @@ and this project adheres to
 
 ## [Unreleased]
 
+## 2.0.0 - 2023-09-23
+
+### Changed
+
+- **_Breaking_** now uses the `v3` of the `aws-sdk`. Peer dependency on
+  `aws-sdk` dropped. Now requires `@aws-sdk/client-dynamodb` and
+  `@aws-sdk/lib-dynamodb`.
+
 ## 1.7.2- 2021-01-31
 
 ### Added

@@ -1,6 +1,7 @@
+import { BatchWriteCommand } from '@aws-sdk/lib-dynamodb';
+import { randomUUID as uuid } from 'crypto';
 import chunk from 'lodash.chunk';
 import pMap from 'p-map';
-import { v4 as uuid } from 'uuid';
 import { QueryInputWithLimit } from '../src/types';
 import TestContext, { documentClient } from './helpers/TestContext';
 
@@ -30,13 +31,13 @@ beforeAll(async () => {
     });
   }
 
-  await documentClient
-    .batchWrite({
+  await documentClient.send(
+    new BatchWriteCommand({
       RequestItems: {
         [context.tableName]: putRequests,
       },
     })
-    .promise();
+  );
 });
 
 afterAll(() => {
@@ -262,13 +263,13 @@ test('#queryUntilLimitReached should return an undefined cursor when the filterE
   await pMap(
     chunk(putRequests, 25),
     async (putRequestChunk) => {
-      await documentClient
-        .batchWrite({
+      await documentClient.send(
+        new BatchWriteCommand({
           RequestItems: {
             [context.tableName]: putRequestChunk,
           },
         })
-        .promise();
+      );
     },
     { concurrency: 1 }
   );

@@ -1,7 +1,12 @@
 /* istanbul ignore file */
 
-import { DynamoDB } from 'aws-sdk';
-import { v4 as uuid } from 'uuid';
+import {
+  CreateTableCommand,
+  DeleteTableCommand,
+  DynamoDBClient,
+} from '@aws-sdk/client-dynamodb';
+import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
+import { randomUUID as uuid } from 'crypto';
 import DynamoDbDao, { DynamoDbDaoInput } from '../../src';
 
 const { DYNAMODB_ENDPOINT = 'http://localhost:8000' } = process.env;
@@ -17,6 +22,7 @@ export interface DataModel extends KeySchema {
   extra?: number;
 }
 
+/*
 const dynamodb = new DynamoDB({
   apiVersion: '2012-08-10',
   region: 'us-east-1',
@@ -24,10 +30,27 @@ const dynamodb = new DynamoDB({
   accessKeyId: 'blah',
   secretAccessKey: 'blah',
 });
+*/
 
-export const documentClient = new DynamoDB.DocumentClient({
-  service: dynamodb,
+const client = new DynamoDBClient({
+  apiVersion: '2012-08-10',
+  region: 'us-east-1',
+  endpoint: DYNAMODB_ENDPOINT,
+  credentials: {
+    accessKeyId: 'blah',
+    secretAccessKey: 'blah',
+  },
 });
+
+export const documentClient = DynamoDBDocumentClient.from(client, {
+  marshallOptions: {
+    removeUndefinedValues: true,
+  },
+});
+
+//export const documentClient = new DynamoDB.DocumentClient({
+//  service: dynamodb,
+//});
 
 export default class TestContext {
   tableName: string;
@@ -51,8 +74,8 @@ export default class TestContext {
     const tableName = uuid();
     const indexName = uuid();
 
-    await dynamodb
-      .createTable({
+    await client.send(
+      new CreateTableCommand({
         TableName: tableName,
         AttributeDefinitions: [
           {
@@ -97,7 +120,7 @@ export default class TestContext {
           WriteCapacityUnits: 1,
         },
       })
-      .promise();
+    );
 
     const dao = new DynamoDbDao<DataModel, KeySchema>({
       tableName,
@@ -110,6 +133,6 @@ export default class TestContext {
   }
 
   teardown() {
-    return dynamodb.deleteTable({ TableName: this.tableName }).promise();
+    return client.send(new DeleteTableCommand({ TableName: this.tableName }));
   }
 }
