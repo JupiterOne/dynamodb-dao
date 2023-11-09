@@ -392,12 +392,6 @@ export default class DynamoDbDao<DataModel, KeySchema> {
   async queryUntilLimitReached(
     params: QueryInputWithLimit
   ): Promise<QueryResult<DataModel>> {
-    if (!params.filterExpression) {
-      // Since there are no filter expressions, DynamoDB will automatically
-      // fulfill the `limit` property.
-      return this.query(params);
-    }
-
     // create a shallow copy of params since we mutate the top level properties
     params = {
       ...params,

@@ -8,6 +8,13 @@ and this project adheres to
 
 ## [Unreleased]
 
+## 1.8.0 - 2023-11-09
+
+### Changed
+
+- Remove condition to skip `queryUntilLimitReached` when `filterExpression` is
+  not provided
+
 ## 1.7.2- 2021-01-31
 
 ### Added

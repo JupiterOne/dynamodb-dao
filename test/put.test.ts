@@ -1,5 +1,5 @@
-import TestContext, { documentClient } from './helpers/TestContext';
 import { v4 as uuid } from 'uuid';
+import TestContext, { documentClient } from './helpers/TestContext';
 
 let context: TestContext;
 

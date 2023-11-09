@@ -1,5 +1,5 @@
-import TestContext, { documentClient } from './helpers/TestContext';
 import { v4 as uuid } from 'uuid';
+import TestContext, { documentClient } from './helpers/TestContext';
 
 let context: TestContext;
 
@@ -78,7 +78,7 @@ test('should allow for a condition expression to be provided', async () => {
       attributeValues: {
         ':testValue': item.test,
       },
-    },
+    }
   );
 
   return expect(promise).rejects.toThrow('The conditional request failed');
@@ -111,7 +111,7 @@ test('should allow for a expression attribute names to be provided', async () =>
       attributeValues: {
         ':testValue': item.test,
       },
-    },
+    }
   );
 
   return expect(promise).rejects.toThrow('The conditional request failed');
