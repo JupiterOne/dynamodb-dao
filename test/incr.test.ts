@@ -30,7 +30,7 @@ test(`#incr should be supported`, async () => {
     {
       id: key.id,
     },
-    'version' as any,
+    'version' as any
   );
 
   const expected: DataModel = {
@@ -59,7 +59,7 @@ test(`#incr should support a custom number to increment by`, async () => {
       id: key.id,
     },
     'version' as any,
-    5,
+    5
   );
 
   const expected: DataModel = {
@@ -86,7 +86,7 @@ test(`#incr should set 0 if the property does not exist`, async () => {
     {
       id: key.id,
     },
-    'version' as any,
+    'version' as any
   );
 
   const expected: DataModel = {

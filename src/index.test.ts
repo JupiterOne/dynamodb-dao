@@ -435,15 +435,20 @@ test(`#update should be supported`, async () => {
   expect(result).toEqual(data);
 });
 
-test(`#queryUntilLimitReached should call #query if "filterExpression" not provided`, async () => {
+test(`#queryUntilLimitReached should call #query once if "filterExpression" not provided and the limit is reached`, async () => {
   const keyConditionExpression = 'id = :id';
   const attributeValues = { id: uuid() };
   const index = uuid();
-  const limit = 50;
+  const limit = 5;
 
   jest.spyOn(testDao, 'query').mockResolvedValue({
-    lastKey: '',
-    items: [],
+    lastKey: uuid(),
+    items: Array.from({ length: 10 }, (_, i) => ({
+      id: '' + i,
+      index: i,
+      test: uuid(),
+      description: uuid(),
+    })),
   });
 
   const params = {
@@ -456,7 +461,37 @@ test(`#queryUntilLimitReached should call #query if "filterExpression" not provi
 
   await testDao.queryUntilLimitReached(params);
 
+  expect(testDao.query).toHaveBeenCalledTimes(1);
   expect(testDao.query).toHaveBeenCalledWith(params);
+});
+
+test(`#queryUntilLimitReached should call #query the number of times needed until the limit is reached if "filterExpression" not provided`, async () => {
+  const keyConditionExpression = 'id = :id';
+  const attributeValues = { id: uuid() };
+  const index = uuid();
+  const limit = 5;
+
+  jest.spyOn(testDao, 'query').mockResolvedValue({
+    lastKey: uuid(),
+    items: Array.from({ length: 2 }, (_, i) => ({
+      id: '' + i,
+      index: i,
+      test: uuid(),
+      description: uuid(),
+    })),
+  });
+
+  const params = {
+    // `filterExpression` is intentionally not provided
+    index,
+    limit,
+    attributeValues,
+    keyConditionExpression,
+  };
+
+  await testDao.queryUntilLimitReached(params);
+
+  expect(testDao.query).toHaveBeenCalledTimes(3);
 });
 
 test('#scan should allow consistent reads', async () => {

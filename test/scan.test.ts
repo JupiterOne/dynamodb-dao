@@ -1,5 +1,5 @@
-import TestContext, { documentClient } from './helpers/TestContext';
 import { v4 as uuid } from 'uuid';
+import TestContext, { documentClient } from './helpers/TestContext';
 
 let context: TestContext;
 const items: any[] = [];
@@ -107,7 +107,7 @@ test('should allow for filterExpression to be provided', async () => {
 async function runSegmentTillFinished(
   context: TestContext,
   segment: number,
-  totalSegments: number,
+  totalSegments: number
 ): Promise<any[]> {
   const allItems: any[] = [];
   const { dao } = context;
