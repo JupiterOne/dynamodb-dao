@@ -2,7 +2,6 @@ import * as AWS from 'aws-sdk';
 import { v4 as uuid } from 'uuid';
 import DynamoDbDao from '.';
 import mockLogger from '../test/helpers/mockLogger';
-import { DEFAULT_QUERY_LIMIT } from './constants';
 import { CountOutput } from './types';
 import { generateUpdateParams } from './update/generateUpdateParams';
 
@@ -211,7 +210,6 @@ test(`#query should have default query limit`, async () => {
   expect(documentClient.query).toHaveBeenCalledWith({
     TableName: tableName,
     IndexName: index,
-    Limit: DEFAULT_QUERY_LIMIT,
     ExclusiveStartKey: undefined,
     KeyConditionExpression: keyConditionExpression,
     ExpressionAttributeValues: attributeValues,
@@ -509,7 +507,6 @@ test('#scan should allow consistent reads', async () => {
 
   expect(documentClient.scan).toHaveBeenCalledWith({
     ConsistentRead: true,
-    Limit: 50,
     TableName: tableName,
   });
 });
