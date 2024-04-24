@@ -2,11 +2,7 @@ import { sleep } from '@lifeomic/attempt';
 import { DocumentClient } from 'aws-sdk/clients/dynamodb';
 import chunk from 'lodash.chunk';
 import pMap from 'p-map';
-import {
-  DEFAULT_LOCK_INCREMENT,
-  DEFAULT_QUERY_LIMIT,
-  MAX_BATCH_OPERATIONS,
-} from './constants';
+import { DEFAULT_LOCK_INCREMENT, MAX_BATCH_OPERATIONS } from './constants';
 import { buildOptimisticLockOptions } from './locking/buildOptimisticLockOptions';
 import {
   decodeQueryUntilLimitCursor,
@@ -181,7 +177,10 @@ export default class DynamoDbDao<DataModel, KeySchema> {
 
       // If the version attribute is supplied, increment it, otherwise only
       // set the default if directed to do so
-      if (versionAttribute in data && !isNaN(dataAsMap[versionAttribute])) {
+      if (
+        versionAttribute in dataAsMap &&
+        !isNaN(dataAsMap[versionAttribute])
+      ) {
         dataAsMap[versionAttribute] += DEFAULT_LOCK_INCREMENT;
       } else if (this.autoInitiateLockingAttribute) {
         dataAsMap[versionAttribute] = DEFAULT_LOCK_INCREMENT;
@@ -354,7 +353,7 @@ export default class DynamoDbDao<DataModel, KeySchema> {
       scanIndexForward,
       keyConditionExpression,
       filterExpression,
-      limit = DEFAULT_QUERY_LIMIT,
+      limit,
       consistentRead,
     } = input;
 
@@ -475,7 +474,7 @@ export default class DynamoDbDao<DataModel, KeySchema> {
       filterExpression,
       segment,
       totalSegments,
-      limit = DEFAULT_QUERY_LIMIT,
+      limit,
       consistentRead,
     } = input;
 
