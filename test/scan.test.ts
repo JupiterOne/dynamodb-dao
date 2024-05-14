@@ -1,5 +1,6 @@
 import { v4 as uuid } from 'uuid';
 import TestContext, { documentClient } from './helpers/TestContext';
+import { BatchWriteCommand } from '@aws-sdk/lib-dynamodb';
 
 let context: TestContext;
 const items: any[] = [];
@@ -27,13 +28,13 @@ beforeAll(async () => {
     });
   }
 
-  await documentClient
-    .batchWrite({
+  await documentClient.send(
+    new BatchWriteCommand({
       RequestItems: {
         [context.tableName]: putRequests,
       },
     })
-    .promise();
+  );
 });
 
 afterAll(() => {
@@ -136,6 +137,7 @@ test('should allow for segment and totalSegments to be provided for parallel sca
   const allItems: any[] = [];
 
   for (const result of results) {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
     allItems.push(...result);
   }
 

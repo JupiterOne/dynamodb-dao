@@ -6,6 +6,7 @@ import TestContext, {
   documentClient,
   KeySchema,
 } from './helpers/TestContext';
+import { BatchGetCommand, BatchWriteCommand } from '@aws-sdk/lib-dynamodb';
 
 let context: TestContext;
 const items: any[] = [];
@@ -38,23 +39,19 @@ test('should allow for bulk put operations to be performed', async () => {
 
   await context.dao.batchWrite(putOperations);
 
-  const results = await documentClient
-    .batchGet({
-      RequestItems: {
-        [context.tableName]: { Keys: items.map((item) => ({ id: item.id })) },
-      },
-    })
-    .promise();
+  const results = await context.dao.batchGet(
+    items.map((item) => ({ id: item.id }))
+  );
 
-  const returnedItems = results.Responses![context.tableName];
+  const returnedItems = results.items;
 
   expect(returnedItems.length).toEqual(items.length);
   expect(returnedItems).toEqual(expect.arrayContaining(items));
 });
 
 test('should allow for bulk delete operations to be performed', async () => {
-  const result = await documentClient
-    .batchWrite({
+  const result = await documentClient.send(
+    new BatchWriteCommand({
       RequestItems: {
         [context.tableName]: items.map((item) => ({
           PutRequest: {
@@ -63,7 +60,7 @@ test('should allow for bulk delete operations to be performed', async () => {
         })),
       },
     })
-    .promise();
+  );
 
   expect(result.UnprocessedItems).toEqual({});
 
@@ -73,13 +70,13 @@ test('should allow for bulk delete operations to be performed', async () => {
     }))
   );
 
-  const results = await documentClient
-    .batchGet({
+  const results = await documentClient.send(
+    new BatchGetCommand({
       RequestItems: {
         [context.tableName]: { Keys: items.map((item) => ({ id: item.id })) },
       },
     })
-    .promise();
+  );
 
   const returnedItems = results.Responses![context.tableName];
 
@@ -92,8 +89,8 @@ test('should allow for a mix of put and delete operations to be performed', asyn
     (item) => item.index % 2
   );
 
-  const storeItemsToBeDeletedResult = await documentClient
-    .batchWrite({
+  const storeItemsToBeDeletedResult = await documentClient.send(
+    new BatchWriteCommand({
       RequestItems: {
         [context.tableName]: itemsToDelete.map((item) => ({
           PutRequest: {
@@ -102,7 +99,7 @@ test('should allow for a mix of put and delete operations to be performed', asyn
         })),
       },
     })
-    .promise();
+  );
 
   expect(storeItemsToBeDeletedResult.UnprocessedItems).toEqual({});
 
@@ -115,13 +112,13 @@ test('should allow for a mix of put and delete operations to be performed', asyn
     })),
   ]);
 
-  const results = await documentClient
-    .batchGet({
+  const results = await documentClient.send(
+    new BatchGetCommand({
       RequestItems: {
         [context.tableName]: { Keys: items.map((item) => ({ id: item.id })) },
       },
     })
-    .promise();
+  );
 
   const returnedItems = results.Responses![context.tableName];
 
@@ -147,25 +144,22 @@ test('should return unprocessed items if there are any', async () => {
     (item) => item.index % 2
   );
 
-  jest.spyOn(documentClient, 'batchWrite').mockReturnValue({
-    promise: () =>
-      Promise.resolve({
-        UnprocessedItems: {
-          [context.tableName]: [
-            {
-              PutRequest: {
-                Item: items[0],
-              },
-            },
-            {
-              DeleteRequest: {
-                Key: { id: items[1].id },
-              },
-            },
-          ],
+  jest.spyOn(documentClient, 'send').mockResolvedValue({
+    UnprocessedItems: {
+      [context.tableName]: [
+        {
+          PutRequest: {
+            Item: items[0],
+          },
         },
-      }),
-  } as any);
+        {
+          DeleteRequest: {
+            Key: { id: items[1].id },
+          },
+        },
+      ],
+    },
+  } as never); // jest is wrong
 
   const { unprocessedItems } = await context.dao.batchWrite([
     ...itemsToDelete.map((item) => ({

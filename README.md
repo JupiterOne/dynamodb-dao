@@ -13,15 +13,17 @@ methods arguments and return values are strictly typed.
 **Constructor:**
 
 ```javascript
-import AWS from 'aws-sdk';
-import DynamoDbDao from '@jupiterone/dynamodb-dao';
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 
-const dynamodb = new AWS.DynamoDB({
+const ddb = new DynamoDBClient({
   apiVersion: '2012-08-10'
-});
+})
 
-const documentClient = new AWS.DynamoDB.DocumentClient({
-  service: dynamodb
+const documentClient = DynamoDBDocumentClient.from(ddb, {
+  marshallOptions: {
+    removeUndefinedValues: true
+  }
 });
 
 // The type declaration of for the documents that we are storing
@@ -120,7 +122,7 @@ const { total } = await myDocumentDao.incr(
   // The `number` property to increment
   'total',
   // The number to increment by. Defaults to 1.
-  5,
+  5
 );
 
 // `total` will have the value `-5`
@@ -133,7 +135,7 @@ const { total } = await myDocumentDao.decr(
   // The `number` property to increment
   'total',
   // The number to decrement by. Defaults to 1.
-  5,
+  5
 );
 ```
 
@@ -147,9 +149,9 @@ const { extra, total } = await myDocumentDao.multiIncr(
     accountId: 'def',
   },
   {
-    'total': 5,
-    'extra': -1,
-  },
+    total: 5,
+    extra: -1,
+  }
 );
 ```
 

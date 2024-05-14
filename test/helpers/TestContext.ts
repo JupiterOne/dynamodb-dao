@@ -1,12 +1,14 @@
 /* istanbul ignore file */
 
-import { DynamoDB } from 'aws-sdk';
+import { DynamoDB } from '@aws-sdk/client-dynamodb';
+
 import { v4 as uuid } from 'uuid';
 import DynamoDbDao, { DynamoDbDaoInput } from '../../src';
+import { DynamoDBDocument } from '@aws-sdk/lib-dynamodb';
 
 const { DYNAMODB_ENDPOINT = 'http://localhost:8000' } = process.env;
 
-export interface KeySchema {
+export interface KeySchema extends Record<string, unknown> {
   id: string;
 }
 
@@ -21,13 +23,13 @@ const dynamodb = new DynamoDB({
   apiVersion: '2012-08-10',
   region: 'us-east-1',
   endpoint: DYNAMODB_ENDPOINT,
-  accessKeyId: 'blah',
-  secretAccessKey: 'blah',
+  credentials: {
+    accessKeyId: 'blah',
+    secretAccessKey: 'blah',
+  },
 });
 
-export const documentClient = new DynamoDB.DocumentClient({
-  service: dynamodb,
-});
+export const documentClient = DynamoDBDocument.from(dynamodb);
 
 export default class TestContext {
   tableName: string;
@@ -51,53 +53,51 @@ export default class TestContext {
     const tableName = uuid();
     const indexName = uuid();
 
-    await dynamodb
-      .createTable({
-        TableName: tableName,
-        AttributeDefinitions: [
-          {
-            AttributeName: 'id',
-            AttributeType: 'S',
-          },
-          {
-            AttributeName: 'test',
-            AttributeType: 'S',
-          },
-        ],
-        KeySchema: [
-          {
-            AttributeName: 'id',
-            KeyType: 'HASH',
-          },
-        ],
-        GlobalSecondaryIndexes: [
-          {
-            IndexName: indexName,
-            KeySchema: [
-              {
-                AttributeName: 'test',
-                KeyType: 'HASH',
-              },
-              {
-                AttributeName: 'id',
-                KeyType: 'RANGE',
-              },
-            ],
-            Projection: {
-              ProjectionType: 'ALL',
-            },
-            ProvisionedThroughput: {
-              ReadCapacityUnits: 1,
-              WriteCapacityUnits: 1,
-            },
-          },
-        ],
-        ProvisionedThroughput: {
-          ReadCapacityUnits: 1,
-          WriteCapacityUnits: 1,
+    await dynamodb.createTable({
+      TableName: tableName,
+      AttributeDefinitions: [
+        {
+          AttributeName: 'id',
+          AttributeType: 'S',
         },
-      })
-      .promise();
+        {
+          AttributeName: 'test',
+          AttributeType: 'S',
+        },
+      ],
+      KeySchema: [
+        {
+          AttributeName: 'id',
+          KeyType: 'HASH',
+        },
+      ],
+      GlobalSecondaryIndexes: [
+        {
+          IndexName: indexName,
+          KeySchema: [
+            {
+              AttributeName: 'test',
+              KeyType: 'HASH',
+            },
+            {
+              AttributeName: 'id',
+              KeyType: 'RANGE',
+            },
+          ],
+          Projection: {
+            ProjectionType: 'ALL',
+          },
+          ProvisionedThroughput: {
+            ReadCapacityUnits: 1,
+            WriteCapacityUnits: 1,
+          },
+        },
+      ],
+      ProvisionedThroughput: {
+        ReadCapacityUnits: 1,
+        WriteCapacityUnits: 1,
+      },
+    });
 
     const dao = new DynamoDbDao<DataModel, KeySchema>({
       tableName,
@@ -110,6 +110,6 @@ export default class TestContext {
   }
 
   teardown() {
-    return dynamodb.deleteTable({ TableName: this.tableName }).promise();
+    return dynamodb.deleteTable({ TableName: this.tableName });
   }
 }
