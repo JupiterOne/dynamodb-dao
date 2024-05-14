@@ -270,7 +270,7 @@ test(`#multiIncr should error when increments are not integers.`, async () => {
       },
       { version: 1.5 }
     )
-  ).rejects.toThrowError('Increments must be integers');
+  ).rejects.toThrow('Increments must be integers');
 });
 
 test(`#multiIncr should support conditionExpressions`, async () => {
@@ -313,5 +313,5 @@ test(`#multiIncr should support conditionExpressions failures`, async () => {
       { version: 1 },
       'attribute_exists(id)'
     )
-  ).rejects.toThrowError(/conditional request/);
+  ).rejects.toThrow(/conditional request/);
 });

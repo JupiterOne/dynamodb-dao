@@ -120,7 +120,7 @@ const { total } = await myDocumentDao.incr(
   // The `number` property to increment
   'total',
   // The number to increment by. Defaults to 1.
-  5,
+  5
 );
 
 // `total` will have the value `-5`
@@ -133,7 +133,7 @@ const { total } = await myDocumentDao.decr(
   // The `number` property to increment
   'total',
   // The number to decrement by. Defaults to 1.
-  5,
+  5
 );
 ```
 
@@ -147,9 +147,9 @@ const { extra, total } = await myDocumentDao.multiIncr(
     accountId: 'def',
   },
   {
-    'total': 5,
-    'extra': -1,
-  },
+    total: 5,
+    extra: -1,
+  }
 );
 ```
 
@@ -204,19 +204,19 @@ first open one terminal and start the local DynamoDB docker container by
 running:
 
 ```
-yarn start:containers
+npm run start:containers
 ```
 
 In a second terminal run:
 
 ```
-yarn test
+npm test
 ```
 
 To stop containers:
 
 ```
-yarn stop:containers
+npm stop:containers
 ```
 
 ## Releasing
@@ -227,7 +227,7 @@ been pushed and merged to the remote repository.
 Next, create a new branch and run the following command:
 
 ```
-yarn version --minor (or --major or --patch)
+npm version --minor (or --major or --patch)
 ```
 
 This will add a commit with an updated `package.json`, and create a new tag

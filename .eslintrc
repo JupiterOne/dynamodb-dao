@@ -1,6 +1,6 @@
 {
   "root": true,
-  "extends": ["@jupiterone/eslint-config/node"],
+  "extends": ["@jupiterone/eslint-config/node18"],
   "ignorePatterns": [
     "node_modules/",
     "dist/",

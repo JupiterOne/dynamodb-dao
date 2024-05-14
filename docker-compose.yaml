@@ -14,4 +14,4 @@ services:
     volumes:
       - ./:/opt/work:delegated
     working_dir: /opt/work
-    command: sh -c "yarn jest --ci"
+    command: sh -c "npx jest --ci"

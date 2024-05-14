@@ -15,10 +15,10 @@ test('#decodeQueryUntilLimitCursor should handle empty cursor', () => {
 test('#decodeQueryUntilLimitCursor should throw error for invalid skip in cursor', () => {
   expect(() => {
     decodeQueryUntilLimitCursor('blah');
-  }).toThrowError(/Invalid cursor/);
+  }).toThrow(/Invalid cursor/);
 });
 test('#decodeQueryUntilLimitCursor should throw error for invalid skip in cursor with pipe', () => {
   expect(() => {
     decodeQueryUntilLimitCursor('blah|blah');
-  }).toThrowError(/Invalid cursor/);
+  }).toThrow(/Invalid cursor/);
 });
