@@ -1,6 +1,8 @@
+/* eslint-disable @typescript-eslint/no-unsafe-argument */
 import { v4 as uuid } from 'uuid';
 import reservedWords from './fixtures/reservedWords';
 import TestContext, { documentClient } from './helpers/TestContext';
+import { PutCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
 
 let context: TestContext;
 
@@ -28,20 +30,20 @@ beforeEach(async () => {
   };
 
   // put data into dynamodb
-  await documentClient
-    .put({
+  await documentClient.send(
+    new PutCommand({
       TableName: tableName,
       Item: input,
     })
-    .promise();
+  );
 
   // ensure it exists
-  const { Item: storedItem } = await documentClient
-    .get({
+  const { Item: storedItem } = await documentClient.send(
+    new GetCommand({
       TableName: tableName,
       Key: key,
     })
-    .promise();
+  );
 
   // eslint-disable-next-line jest/no-standalone-expect
   expect(storedItem).toEqual(input);
@@ -54,12 +56,12 @@ test('should be able to update an item in the table', async () => {
   await dao.update(key, updateData);
 
   // ensure it exists
-  const { Item: updatedItem } = await documentClient
-    .get({
+  const { Item: updatedItem } = await documentClient.send(
+    new GetCommand({
       TableName: tableName,
       Key: key,
     })
-    .promise();
+  );
 
   expect(updatedItem).toEqual({
     ...item,
@@ -73,12 +75,12 @@ test('should explicitly remove a key if a field is explicitly set to undefined',
   await dao.update(key, updateData);
 
   // ensure it exists
-  const { Item: updatedItem } = await documentClient
-    .get({
+  const { Item: updatedItem } = await documentClient.send(
+    new GetCommand({
       TableName: tableName,
       Key: key,
     })
-    .promise();
+  );
 
   expect(updatedItem).toEqual({
     ...item,
@@ -92,12 +94,12 @@ test('should be able to mix updates and removals', async () => {
   await dao.update(key, updateData);
 
   // ensure it exists
-  const { Item: updatedItem } = await documentClient
-    .get({
+  const { Item: updatedItem } = await documentClient.send(
+    new GetCommand({
       TableName: tableName,
       Key: key,
     })
-    .promise();
+  );
 
   expect(updatedItem).toEqual({
     ...item,
@@ -113,12 +115,12 @@ describe('reserved words', () => {
       await dao.update(key, updateData);
 
       // ensure it exists
-      const { Item: updatedItem } = await documentClient
-        .get({
+      const { Item: updatedItem } = await documentClient.send(
+        new GetCommand({
           TableName: tableName,
           Key: key,
         })
-        .promise();
+      );
 
       expect(updatedItem).toEqual({
         ...item,
@@ -150,12 +152,12 @@ test('should allow for attribute names to be provided for condition expressions'
     status: 'ACTIVE', // add field ths is reserved word in ddb
   };
 
-  await documentClient
-    .put({
+  await documentClient.send(
+    new PutCommand({
       TableName: tableName,
       Item: testItem,
     })
-    .promise();
+  );
 
   const updateData = { status: uuid() };
 
@@ -169,12 +171,12 @@ test('should allow for attribute names to be provided for condition expressions'
     },
   });
 
-  const { Item: updatedItem } = await documentClient
-    .get({
+  const { Item: updatedItem } = await documentClient.send(
+    new GetCommand({
       TableName: tableName,
       Key: key,
     })
-    .promise();
+  );
 
   expect(updatedItem).toEqual({
     ...item,

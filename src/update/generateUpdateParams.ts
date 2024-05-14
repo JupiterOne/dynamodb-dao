@@ -1,4 +1,4 @@
-import { DocumentClient } from 'aws-sdk/clients/dynamodb';
+import { UpdateCommandInput } from '@aws-sdk/lib-dynamodb';
 import { DEFAULT_LOCK_INCREMENT, UpdateOptions } from '../index';
 import { buildOptimisticLockOptions } from '../locking/buildOptimisticLockOptions';
 import { AttributeNames, AttributeValues } from '../types';
@@ -19,7 +19,7 @@ export interface GenerateUpdateParamsInput extends UpdateOptions {
 
 export function generateUpdateParams(
   options: GenerateUpdateParamsInput & SaveBehavior
-): DocumentClient.UpdateItemInput {
+): UpdateCommandInput {
   const setExpressions: string[] = [];
   const addExpressions: string[] = [];
   const removeExpressions: string[] = [];
@@ -43,7 +43,7 @@ export function generateUpdateParams(
 
   if (versionAttribute) {
     const providesVersion =
-      versionAttribute in data && !isNaN(dataAsMap[versionAttribute]);
+      versionAttribute in data && !isNaN(dataAsMap[versionAttribute] as number);
 
     if (providesVersion || autoInitiateLockingAttribute) {
       addExpressions.push(`#${versionAttribute} :${versionAttribute}Inc`);

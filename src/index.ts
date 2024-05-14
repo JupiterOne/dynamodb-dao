@@ -1,5 +1,4 @@
 import { sleep } from '@lifeomic/attempt';
-import { DocumentClient } from 'aws-sdk/clients/dynamodb';
 import chunk from 'lodash.chunk';
 import pMap from 'p-map';
 import { DEFAULT_LOCK_INCREMENT, MAX_BATCH_OPERATIONS } from './constants';
@@ -33,6 +32,18 @@ import {
   DataModelAsMap,
   generateUpdateParams,
 } from './update/generateUpdateParams';
+import {
+  BatchGetCommand,
+  BatchWriteCommand,
+  DeleteCommand,
+  DynamoDBDocumentClient,
+  GetCommand,
+  PutCommand,
+  QueryCommand,
+  ScanCommand,
+  UpdateCommand,
+  UpdateCommandInput,
+} from '@aws-sdk/lib-dynamodb';
 
 export * from './constants';
 export * from './types';
@@ -53,7 +64,7 @@ export type DeleteOptions = ConditionalOptions & MutateBehavior;
 
 export interface DynamoDbDaoInput<T> {
   tableName: string;
-  documentClient: DocumentClient;
+  documentClient: DynamoDBDocumentClient;
   optimisticLockingAttribute?: keyof NumberPropertiesInType<T>;
   autoInitiateLockingAttribute?: boolean;
 }
@@ -71,18 +82,19 @@ export type NumberPropertiesInType<T> = Pick<
   }[keyof T]
 >;
 
-type IncrMap<DataModel> = Partial<
-  {
-    [key in keyof NumberPropertiesInType<DataModel>]: number;
-  }
->;
+type IncrMap<DataModel> = Partial<{
+  [key in keyof NumberPropertiesInType<DataModel>]: number;
+}>;
 
 /**
  * A base dynamodb dao class that enforces types
  */
-export default class DynamoDbDao<DataModel, KeySchema> {
+export default class DynamoDbDao<
+  DataModel extends Record<string, unknown>,
+  KeySchema extends Record<string, unknown>,
+> {
   public readonly tableName: string;
-  public readonly documentClient: DocumentClient;
+  public readonly documentClient: DynamoDBDocumentClient;
   public readonly optimisticLockingAttribute?: keyof NumberPropertiesInType<DataModel>;
   public readonly autoInitiateLockingAttribute?: boolean;
 
@@ -106,13 +118,13 @@ export default class DynamoDbDao<DataModel, KeySchema> {
     options: GetItemOptions = { consistentRead: false }
   ): Promise<DataModel | undefined> {
     const { consistentRead } = options;
-    const { Item: item } = await this.documentClient
-      .get({
+    const { Item: item } = await this.documentClient.send(
+      new GetCommand({
         TableName: this.tableName,
         Key: key,
         ConsistentRead: consistentRead,
       })
-      .promise();
+    );
 
     return item as DataModel;
   }
@@ -139,16 +151,19 @@ export default class DynamoDbDao<DataModel, KeySchema> {
           attributeValues,
         }));
     }
-    const { Attributes: attributes } = await this.documentClient
-      .delete({
-        TableName: this.tableName,
-        Key: key,
-        ReturnValues: 'ALL_OLD',
-        ConditionExpression: conditionExpression,
-        ExpressionAttributeNames: attributeNames,
-        ExpressionAttributeValues: attributeValues,
-      })
-      .promise();
+    const { Attributes: attributes } =
+      await // The `.promise()` call might be on an JS SDK v2 client API.
+      // If yes, please remove .promise(). If not, remove this comment.
+      this.documentClient.send(
+        new DeleteCommand({
+          TableName: this.tableName,
+          Key: key,
+          ReturnValues: 'ALL_OLD',
+          ConditionExpression: conditionExpression,
+          ExpressionAttributeNames: attributeNames,
+          ExpressionAttributeValues: attributeValues,
+        })
+      );
 
     return attributes as DataModel;
   }
@@ -179,7 +194,7 @@ export default class DynamoDbDao<DataModel, KeySchema> {
       // set the default if directed to do so
       if (
         versionAttribute in dataAsMap &&
-        !isNaN(dataAsMap[versionAttribute])
+        !isNaN(dataAsMap[versionAttribute] as number)
       ) {
         dataAsMap[versionAttribute] += DEFAULT_LOCK_INCREMENT;
       } else if (this.autoInitiateLockingAttribute) {
@@ -187,15 +202,15 @@ export default class DynamoDbDao<DataModel, KeySchema> {
       }
     }
 
-    await this.documentClient
-      .put({
+    await this.documentClient.send(
+      new PutCommand({
         TableName: this.tableName,
         Item: data,
         ConditionExpression: conditionExpression,
         ExpressionAttributeNames: attributeNames,
         ExpressionAttributeValues: attributeValues,
       })
-      .promise();
+    );
     return data;
   }
 
@@ -218,9 +233,9 @@ export default class DynamoDbDao<DataModel, KeySchema> {
       autoInitiateLockingAttribute: this.autoInitiateLockingAttribute,
     });
 
-    const { Attributes: attributes } = await this.documentClient
-      .update(params)
-      .promise();
+    const { Attributes: attributes } = await this.documentClient.send(
+      new UpdateCommand(params)
+    );
 
     return attributes as DataModel;
   }
@@ -266,7 +281,7 @@ export default class DynamoDbDao<DataModel, KeySchema> {
       );
     }
 
-    const updateParams: DocumentClient.UpdateItemInput = {
+    const updateParams: UpdateCommandInput = {
       TableName: this.tableName,
       Key: key,
       UpdateExpression: 'SET',
@@ -289,9 +304,9 @@ export default class DynamoDbDao<DataModel, KeySchema> {
       updateParams.ExpressionAttributeValues![valueName] = value;
     });
 
-    const { Attributes: attributes } = await this.documentClient
-      .update(updateParams)
-      .promise();
+    const { Attributes: attributes } = await this.documentClient.send(
+      new UpdateCommand(updateParams)
+    );
 
     return attributes as DataModel;
   }
@@ -316,8 +331,8 @@ export default class DynamoDbDao<DataModel, KeySchema> {
       startKey = decodeExclusiveStartKey<KeySchema>(startAt);
     }
 
-    const result = await this.documentClient
-      .query({
+    const result = await this.documentClient.send(
+      new QueryCommand({
         TableName: this.tableName,
         IndexName: index,
         KeyConditionExpression: keyConditionExpression,
@@ -328,7 +343,7 @@ export default class DynamoDbDao<DataModel, KeySchema> {
         Limit: limit,
         Select: 'COUNT',
       })
-      .promise();
+    );
 
     return {
       count: result.Count,
@@ -363,8 +378,8 @@ export default class DynamoDbDao<DataModel, KeySchema> {
       startKey = decodeExclusiveStartKey<KeySchema>(startAt);
     }
 
-    const result = await this.documentClient
-      .query({
+    const result = await this.documentClient.send(
+      new QueryCommand({
         TableName: this.tableName,
         IndexName: index,
         Limit: limit,
@@ -376,7 +391,7 @@ export default class DynamoDbDao<DataModel, KeySchema> {
         ExpressionAttributeValues: attributeValues,
         ConsistentRead: consistentRead,
       })
-      .promise();
+    );
 
     return {
       items: result.Items as DataModel[],
@@ -496,8 +511,8 @@ export default class DynamoDbDao<DataModel, KeySchema> {
       startKey = decodeExclusiveStartKey<KeySchema>(startAt);
     }
 
-    const result = await this.documentClient
-      .scan({
+    const result = await this.documentClient.send(
+      new ScanCommand({
         TableName: this.tableName,
         IndexName: index,
         Limit: limit,
@@ -509,7 +524,7 @@ export default class DynamoDbDao<DataModel, KeySchema> {
         TotalSegments: totalSegments,
         ConsistentRead: consistentRead,
       })
-      .promise();
+    );
 
     return {
       items: result.Items as DataModel[],
@@ -530,8 +545,8 @@ export default class DynamoDbDao<DataModel, KeySchema> {
       );
     }
 
-    const result = await this.documentClient
-      .batchWrite({
+    const result = await this.documentClient.send(
+      new BatchWriteCommand({
         RequestItems: {
           [this.tableName]: operations.map((operation) => {
             if (isBatchPutOperation(operation)) {
@@ -550,7 +565,7 @@ export default class DynamoDbDao<DataModel, KeySchema> {
           }),
         },
       })
-      .promise();
+    );
 
     const unprocessedItems =
       result.UnprocessedItems && result.UnprocessedItems[this.tableName];
@@ -581,15 +596,15 @@ export default class DynamoDbDao<DataModel, KeySchema> {
       );
     }
 
-    const result = await this.documentClient
-      .batchGet({
+    const result = await this.documentClient.send(
+      new BatchGetCommand({
         RequestItems: {
           [this.tableName]: {
             Keys: keys,
           },
         },
       })
-      .promise();
+    );
 
     const items = result.Responses && result.Responses[this.tableName];
     const unprocessedKeys =

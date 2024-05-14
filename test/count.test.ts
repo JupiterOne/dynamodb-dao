@@ -1,6 +1,7 @@
 import { v4 as uuid } from 'uuid';
 import { CountOutput } from '../src/types';
 import TestContext, { documentClient } from './helpers/TestContext';
+import { BatchWriteCommand } from '@aws-sdk/lib-dynamodb';
 
 let context: TestContext;
 const items: any[] = [];
@@ -28,13 +29,13 @@ beforeAll(async () => {
     });
   }
 
-  await documentClient
-    .batchWrite({
+  await documentClient.send(
+    new BatchWriteCommand({
       RequestItems: {
         [context.tableName]: putRequests,
       },
     })
-    .promise();
+  );
 });
 
 afterAll(() => {

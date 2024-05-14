@@ -1,6 +1,7 @@
 import { v4 as uuid } from 'uuid';
 import mockLogger from './helpers/mockLogger';
 import TestContext, { documentClient } from './helpers/TestContext';
+import { BatchGetCommand } from '@aws-sdk/lib-dynamodb';
 
 let context: TestContext;
 const items: any[] = [];
@@ -34,13 +35,13 @@ test('should allow for bulk put operations to be performed', async () => {
     items,
   });
 
-  const results = await documentClient
-    .batchGet({
+  const results = await documentClient.send(
+    new BatchGetCommand({
       RequestItems: {
         [context.tableName]: { Keys: items.map((item) => ({ id: item.id })) },
       },
     })
-    .promise();
+  );
 
   const returnedItems = results.Responses![context.tableName];
 

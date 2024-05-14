@@ -1,5 +1,5 @@
 {
-  "extends": "./node_modules/@jupiterone/typescript-tools/config/typescript-node12",
+  "extends": "./node_modules/@jupiterone/typescript-tools/config/typescript-node18",
   "compilerOptions": {
     "outDir": "dist",
     "skipLibCheck": true,
