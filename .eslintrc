@@ -8,11 +8,19 @@
     "coverage/",
     "bak/",
     "index.js",
-    "tools/"
+    "tools/",
   ],
   "parserOptions": {
     "es6": true,
     "project": "./tsconfig.json",
-    "tsconfigRootDir": "."
-  }
+    "tsconfigRootDir": ".",
+  },
+  "overrides": [
+    {
+      "files": ["**/*.spec.js", "**/*.spec.jsx"],
+      "env": {
+        "jest": true,
+      },
+    },
+  ],
 }

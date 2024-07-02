@@ -28,17 +28,15 @@ afterAll(() => {
 });
 
 test('should allow for bulk get operations to be performed', async () => {
-  await documentClient
-    .batchWrite({
-      RequestItems: {
-        [context.tableName]: items.map((item) => ({
-          PutRequest: {
-            Item: item,
-          },
-        })),
-      },
-    })
-    .promise();
+  await documentClient.batchWrite({
+    RequestItems: {
+      [context.tableName]: items.map((item) => ({
+        PutRequest: {
+          Item: item,
+        },
+      })),
+    },
+  });
 
   const { items: returnedItems } = await context.dao.batchGet(
     items.map((item) => ({ id: item.id }))
@@ -49,16 +47,13 @@ test('should allow for bulk get operations to be performed', async () => {
 });
 
 test('should return unprocessed keys if there are any', async () => {
-  jest.spyOn(documentClient, 'batchGet').mockReturnValue({
-    promise: () =>
-      Promise.resolve({
-        UnprocessedKeys: {
-          [context.tableName]: {
-            Keys: [{ id: items[0].id }],
-          },
-        },
-      }),
-  } as any);
+  jest.spyOn(documentClient, 'send').mockResolvedValue({
+    UnprocessedKeys: {
+      [context.tableName]: {
+        Keys: [{ id: items[0].id }],
+      },
+    },
+  } as never); // jest is wrong
 
   const { unprocessedKeys } = await context.dao.batchGet(
     items.map((item) => ({ id: item.id }))
