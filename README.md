@@ -229,7 +229,7 @@ been pushed and merged to the remote repository.
 Next, create a new branch and run the following command:
 
 ```
-yarn version --minor (or --major or --patch)
+npm version minor (or major or patch)
 ```
 
 This will add a commit with an updated `package.json`, and create a new tag
