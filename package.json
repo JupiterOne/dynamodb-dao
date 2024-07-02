@@ -1,6 +1,6 @@
 {
   "name": "@jupiterone/dynamodb-dao",
-  "version": "1.9.0",
+  "version": "2.0.0",
   "description": "DynamoDB Data Access Object (DAO) helper library",
   "repository": {
     "type": "git",
