@@ -206,19 +206,19 @@ first open one terminal and start the local DynamoDB docker container by
 running:
 
 ```
-yarn start:containers
+npm run start:containers
 ```
 
 In a second terminal run:
 
 ```
-yarn test
+npm test
 ```
 
 To stop containers:
 
 ```
-yarn stop:containers
+npm run stop:containers
 ```
 
 ## Releasing

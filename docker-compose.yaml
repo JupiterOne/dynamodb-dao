@@ -1,12 +1,10 @@
-version: '3'
-
 services:
   dynamodb:
-    image: 'public.ecr.aws/aws-dynamodb-local/aws-dynamodb-local:1.19.0'
+    image: 'amazon/dynamodb-local:latest'
     ports:
       - 8000:8000
   test:
-    image: public.ecr.aws/docker/library/node:18-alpine3.16
+    image: node:24-alpine
     environment:
       - DYNAMODB_ENDPOINT=http://dynamodb:8000
     depends_on:
@@ -14,4 +12,4 @@ services:
     volumes:
       - ./:/opt/work:delegated
     working_dir: /opt/work
-    command: sh -c "yarn jest --ci"
+    command: sh -c "npm test -- --ci"

@@ -1,4 +1,4 @@
-import partition from 'lodash.partition';
+import { partition } from 'lodash';
 import { v4 as uuid } from 'uuid';
 import { BatchWriteOperation } from '../src/types';
 import TestContext, {

@@ -1,4 +1,4 @@
-import chunk from 'lodash.chunk';
+import { chunk } from 'lodash';
 import pMap from 'p-map';
 import { v4 as uuid } from 'uuid';
 import { QueryInputWithLimit } from '../src/types';
