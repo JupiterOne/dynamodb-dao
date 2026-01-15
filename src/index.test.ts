@@ -564,7 +564,7 @@ test('#batchWriteWithExponentialBackoff should error when a batchWrite fails', a
       logger: mockLogger,
       items: [testModelInstance, testModelInstance, testModelInstance],
     })
-  ).rejects.toThrowError();
+  ).rejects.toThrow();
 });
 
 test('#batchWriteWithExponentialBackoff should retry unprocessed items', async () => {
@@ -604,7 +604,7 @@ test('#batchWriteWithExponentialBackoff should stop retrying after hitting max a
       items: [testModelInstance, testModelInstance, testModelInstance],
       maxRetries: 2,
     })
-  ).rejects.toThrowError();
+  ).rejects.toThrow();
 
   // original request, plus two retries 3 retries (it's 0 based)
   expect(batchWriteSpy).toHaveBeenCalledTimes(4);

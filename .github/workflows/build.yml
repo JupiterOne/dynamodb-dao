@@ -3,31 +3,34 @@ on: [push, pull_request]
 
 jobs:
   test:
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        node-version: [18.x]
-        os: [ubuntu-latest]
+        node-version: [24.x]
 
     steps:
-      - id: setup-node
-        name: Setup Node
-        uses: actions/setup-node@v3
+      - name: Check out code repository source code
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
 
-      - name: Check out code repository source code
-        uses: actions/checkout@v2
+      - name: Verify Docker and Docker Compose
+        run: |
+          docker --version
+          docker compose version
 
       - name: Install dependencies
-        run: yarn
+        run: npm ci
 
       - name: Start containers and run tests
-        run: yarn test:ci
+        run: npm run test:ci
 
       - name: Run build
-        run: yarn build
+        run: npm run build
 
   # Publishing is done in a separate job to allow
   # for all matrix builds to complete.
@@ -38,20 +41,21 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: [18]
+        node-version: [24.x]
 
     steps:
-      - name: Setup Node
-        uses: actions/setup-node@v3
-        with:
-          node-version: 18.x
-
       - name: Check out repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 2
 
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
       - name: Check if publish needed
+        id: should-publish
         run: |
           name="$(jq -r .name package.json)"
           npmver="$(npm show $name version || echo v0.0.0)"
@@ -62,14 +66,15 @@ jobs:
           else
             echo "Package version ($pkgver) is different from latest NPM version ($npmver), publishing!"
             echo "publish=true" >> $GITHUB_ENV
+            echo "version=${pkgver}" >> $GITHUB_OUTPUT
           fi
 
       - name: Publish
-        if: env.publish == 'true'
+        if: steps.should-publish.outputs.publish == 'true'
         env:
           NPM_AUTH_TOKEN: ${{ secrets.NPM_AUTH_TOKEN }}
         run: |
           echo "//registry.npmjs.org/:_authToken=${NPM_AUTH_TOKEN}" > .npmrc
-          yarn
-          yarn build
+          npm ci
+          npm run build
           npm publish ./dist

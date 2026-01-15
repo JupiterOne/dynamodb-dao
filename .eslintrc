@@ -1,6 +1,6 @@
 {
   "root": true,
-  "extends": ["@jupiterone/eslint-config/node"],
+  "extends": ["@jupiterone/eslint-config/node18"],
   "ignorePatterns": [
     "node_modules/",
     "dist/",
@@ -8,19 +8,19 @@
     "coverage/",
     "bak/",
     "index.js",
-    "tools/",
+    "tools/"
   ],
   "parserOptions": {
     "es6": true,
     "project": "./tsconfig.json",
-    "tsconfigRootDir": ".",
+    "tsconfigRootDir": "."
   },
   "overrides": [
     {
       "files": ["**/*.spec.js", "**/*.spec.jsx"],
       "env": {
-        "jest": true,
-      },
-    },
-  ],
+        "jest": true
+      }
+    }
+  ]
 }

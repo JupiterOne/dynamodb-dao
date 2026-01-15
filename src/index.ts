@@ -1,5 +1,5 @@
 import { sleep } from '@lifeomic/attempt';
-import chunk from 'lodash.chunk';
+import { chunk } from 'lodash';
 import pMap from 'p-map';
 import { DEFAULT_LOCK_INCREMENT, MAX_BATCH_OPERATIONS } from './constants';
 import { buildOptimisticLockOptions } from './locking/buildOptimisticLockOptions';
@@ -151,19 +151,16 @@ export default class DynamoDbDao<
           attributeValues,
         }));
     }
-    const { Attributes: attributes } =
-      await // The `.promise()` call might be on an JS SDK v2 client API.
-      // If yes, please remove .promise(). If not, remove this comment.
-      this.documentClient.send(
-        new DeleteCommand({
-          TableName: this.tableName,
-          Key: key,
-          ReturnValues: 'ALL_OLD',
-          ConditionExpression: conditionExpression,
-          ExpressionAttributeNames: attributeNames,
-          ExpressionAttributeValues: attributeValues,
-        })
-      );
+    const { Attributes: attributes } = await this.documentClient.send(
+      new DeleteCommand({
+        TableName: this.tableName,
+        Key: key,
+        ReturnValues: 'ALL_OLD',
+        ConditionExpression: conditionExpression,
+        ExpressionAttributeNames: attributeNames,
+        ExpressionAttributeValues: attributeValues,
+      })
+    );
 
     return attributes as DataModel;
   }
