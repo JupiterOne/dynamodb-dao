@@ -76,7 +76,9 @@ interface BaseBatchWriteWithExponentialBackoffParams<T, U> {
   batchWriteLimit?: number;
 }
 
-export interface BatchWriteWithExponentialBackoffParams<T, U>
-  extends BaseBatchWriteWithExponentialBackoffParams<T, U> {
+export interface BatchWriteWithExponentialBackoffParams<
+  T,
+  U,
+> extends BaseBatchWriteWithExponentialBackoffParams<T, U> {
   items: T[];
 }

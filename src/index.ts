@@ -152,15 +152,15 @@ export default class DynamoDbDao<
         }));
     }
     const { Attributes: attributes } = await this.documentClient.send(
-        new DeleteCommand({
-          TableName: this.tableName,
-          Key: key,
-          ReturnValues: 'ALL_OLD',
-          ConditionExpression: conditionExpression,
-          ExpressionAttributeNames: attributeNames,
-          ExpressionAttributeValues: attributeValues,
-        })
-      );
+      new DeleteCommand({
+        TableName: this.tableName,
+        Key: key,
+        ReturnValues: 'ALL_OLD',
+        ConditionExpression: conditionExpression,
+        ExpressionAttributeNames: attributeNames,
+        ExpressionAttributeValues: attributeValues,
+      })
+    );
 
     return attributes as DataModel;
   }

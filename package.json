@@ -24,11 +24,12 @@
     "compile": "tsc -p tsconfig.dist.json --declaration",
     "prebuild": "rm -rf dist",
     "build": "npm run compile && cp README.md LICENSE package-lock.json package.json ./dist",
-    "autobuild": "npm run build && (cd ./dist && npm install --production && npm link) && npx nodemon --exec 'npm run compile' --watch src -e ts --delay 3"
+    "autobuild": "npm run build && (cd ./dist && npm install --production && npm link) && npx nodemon --exec 'npm run compile' --watch src -e ts --delay 3",
+    "validate:ci": "npm run build && npm run lint && npm run type-check && npm run test:ci"
   },
   "dependencies": {
-    "@aws-sdk/client-dynamodb": "^3.970.0",
-    "@aws-sdk/lib-dynamodb": "^3.970.0",
+    "@aws-sdk/client-dynamodb": "^3",
+    "@aws-sdk/lib-dynamodb": "^3",
     "@lifeomic/attempt": "^3.1.0",
     "lodash": "^4.17.21",
     "p-map": "^4.0.0"
@@ -39,7 +40,7 @@
   },
   "devDependencies": {
     "@jupiterone/eslint-config": "^3.0.0",
-    "@jupiterone/typescript-tools": "^19.2.0",
+    "@jupiterone/typescript-tools": "^20.0.0",
     "@types/jest": "^30.0.0",
     "@types/lodash": "^4.17.23",
     "@types/node": "^25.0.9",
