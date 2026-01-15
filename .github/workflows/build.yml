@@ -3,21 +3,25 @@ on: [push, pull_request]
 
 jobs:
   test:
-    runs-on: scaleset-jupiterone-infra-arm64
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         node-version: [24.x]
 
     steps:
-      - id: setup-node
-        name: Setup Node
-        uses: actions/setup-node@v3
+      - name: Check out code repository source code
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
 
-      - name: Check out code repository source code
-        uses: actions/checkout@v2
+      - name: Verify Docker and Docker Compose
+        run: |
+          docker --version
+          docker compose version
 
       - name: Install dependencies
         run: npm ci
@@ -32,7 +36,7 @@ jobs:
   # for all matrix builds to complete.
   release:
     needs: test
-    runs-on: scaleset-jupiterone-infra-arm64
+    runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
     strategy:
       fail-fast: false
@@ -40,15 +44,15 @@ jobs:
         node-version: [24.x]
 
     steps:
-      - name: Setup Node
-        uses: actions/setup-node@v3
-        with:
-          node-version: ${{ matrix.node-version }}
-
       - name: Check out repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 2
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
 
       - name: Check if publish needed
         id: should-publish
