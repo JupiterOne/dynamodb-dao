@@ -43,7 +43,7 @@
     "@jupiterone/typescript-tools": "^20.0.0",
     "@types/jest": "^30.0.0",
     "@types/lodash": "^4.17.23",
-    "@types/node": "^25.0.9",
+    "@types/node": "^24.19.2",
     "@types/uuid": "^10.0.0",
     "jest": "^30.0.0",
     "nodemon": "^3.1.11",
