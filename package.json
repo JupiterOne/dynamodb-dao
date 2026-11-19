@@ -25,7 +25,8 @@
     "prebuild": "rm -rf dist",
     "build": "npm run compile && cp README.md LICENSE package-lock.json package.json ./dist",
     "autobuild": "npm run build && (cd ./dist && npm install --production && npm link) && npx nodemon --exec 'npm run compile' --watch src -e ts --delay 3",
-    "validate:ci": "npm run build && npm run lint && npm run type-check && npm run test:ci"
+    "validate:ci": "npm run build && npm run lint && npm run type-check && npm run test:ci",
+    "prepare": "husky"
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3",
@@ -43,9 +44,11 @@
     "@jupiterone/typescript-tools": "^20.0.0",
     "@types/jest": "^30.0.0",
     "@types/lodash": "^4.17.23",
-    "@types/node": "^25.0.9",
+    "@types/node": "^24.19.2",
     "@types/uuid": "^10.0.0",
+    "husky": "^9.1.7",
     "jest": "^30.0.0",
+    "lint-staged": "^16.2.7",
     "nodemon": "^3.1.11",
     "ts-jest": "^29.4.6",
     "uuid": "^13.0.0"
